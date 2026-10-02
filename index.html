@@ -51,6 +51,15 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .pk .pm{display:block;font-size:9.5px;color:var(--c);font-weight:600}.pk em{display:block;font-style:normal;font-size:9px;color:var(--muted)}
 .tx img{width:28px;height:28px;border-radius:50%;vertical-align:middle;margin-right:6px;background:var(--line)}
 .add{color:var(--accent)}.drop{color:#c0392b}
+.accs{border-bottom:1px solid var(--line)}
+.acc{border-top:1px solid var(--line)}
+.acc>button{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;background:none;border:0;color:var(--fg);font:600 1.1rem Georgia,serif;padding:16px 4px;cursor:pointer}
+.acc>button:after{content:'+';color:var(--accent);font-size:1.4rem}
+.acc>button[aria-expanded=true]:after{content:'\2013'}
+.accb{padding:0 4px 18px;font:15px/1.55 system-ui,sans-serif;max-width:760px}
+.accb[hidden]{display:none}
+.accb h4{margin:18px 0 4px;font:700 15px system-ui,sans-serif;color:var(--accent)}
+.accb p,.accb ul{margin:6px 0}
 </style>
 </head>
 <body>
@@ -62,7 +71,76 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 <script>
 /* ===== SETTINGS: change these ===== */
 const LEAGUE_ID = '1312128031032086528';   // your current Sleeper league
-const CONSTITUTION = 'Paste your league constitution here. Use blank lines between paragraphs.';
+const CONSTITUTION = [
+["Positional Breakdown",[
+"p:25 Rostered Players per Team","h:Starters",
+"l:QB","l:RB","l:RB","l:WR","l:WR","l:TE","l:FLEX","l:K","l:DEF",
+"p:11 Bench Spots (Expanded by 2 between the league draft and start of Preseason)",
+"p:5 Taxi Squad Spots (Expanded by 2 between the league draft and start of Preseason)",
+"p:2 IR Spots (Player must be labeled as IR, Out, or Covid in the Sleeper App)",
+"h:Position Maximums",
+"p:There are no limits on what positions you roster. Build your team your way",
+"p:Taxi squads are to be used for developing players and not just hoarding players so others cannot have them",
+"p:The experience threshold for taxi squad eligible players are players in their rookie year (year 0) up to 1 year."]],
+["Trading",[
+"p:Trading of players and draft picks (up to 3 drafts away) are allowed. Trades that have been accepted will be reviewed and processed within a day. Trades will be reversed if vetoed by 5 of the 8 managers not included in the trade. If any given trade is under investigation of collusion the trade will be reversed until a decision is made regarding the investigation.",
+"h:Trade Collusion",
+"p:If any owners are suspected of accepting bribes/offering bribes to enhance their/another owners team via trade, trading any assets other than fantasy players, draft picks, or otherwise found guilty of engaging in any form of collusion*, all parties involved in the trade will be susceptible to punishment. The punishments will go as followed:",
+"l:First Offense – Immediate freeze on trading for 3 weeks",
+"l:Second Offense – Immediate freeze on all transaction types for the next 18 weeks of regular season and playoff fantasy football games, including trades and waiver wire bids",
+"l:Third Offense – A league meeting of all members not involved in any of the improper trades/activity in question will take place to discuss next steps.",
+"p:All trades that are found guilty of collusion, will be reversed/denied. If the trade had affected the outcome of previous games, the results of those games will be revised.",
+"p:*Collusion includes the organizing of veto votes against an acceptable trade.*",
+"p:The commissioners will err on the side of letting owners manage their teams the way they see fit. Any collusion will need to be clear. The commissioner reserves the right to step in and at the very least assess the thinking of any team involved in a heavily lop-sided trade.",
+"h:Lending Players Prohibition",
+"p:Any player traded from a team may not be re-acquired via trade within 6 weeks of the original trade. Any teams involved in this behavior will be subject to the collusion punishments.",
+"h:Trade Deadline",
+"p:The trade deadline will be set for the Saturday of the week 11 games of the NFL season.",
+"h:Trade Restrictions",
+"p:No Restrictions at this time",
+"h:Veto/Trade Process",
+"p:A total of 5 veto votes are required to veto a trade. Those who are trading votes do not count towards a veto. Vetoes are only appropriate in instances of collusion or an egregious mismatch of value (i.e., CMC for a backup kicker). Not liking a trade does not warrant a veto",
+"h:Waiver Wire",
+"p:Rolling Waiver Wire system. Rolling Waivers are continuous and the last person to waiver a player is placed last into the waiver priority",
+"p:Waiver priority resets at the beginning of each offseason in reverse standings order"]],
+["Drafting",[
+"h:Draft Order",
+"p:The draft order each year will be a Snake draft in reverse order of the previous year’s regular season standings.",
+"h:Rookie Drafts",
+"p:Rookie drafts will consist of 5 rounds of drafting, with 1 minute 30 seconds allotted for each pick. To make room for the incoming players, benches will be expanded by (2) spots as well as taxi squad expanded (2) Spots. These spots will be removed before the 1st week of Preseason, at which point you will need to have cut the necessary players.",
+"p:Any roster spots not filled during the draft, can be filled immediately afterwards from the waiver wire.",
+"h:Draft Day Trades",
+"p:If a trade is being made during the draft, one or both parties can alert the commissioner to pause the draft to allow for extra time to negotiate the trade."]],
+["Scoring System",[
+"h:Scoring System",
+"p:The league scoring system breakdown is listed on the Sleeper fantasy app (for the most part, it follows typical 1 PPR Scoring). The scoring system will never change without a majority league vote."]],
+["Postseason",[
+"h:Playoffs",
+"p:At the end of the season 6 teams will make the playoffs. The first round of playoffs will commence in week 15. Each team that wins their division and the 4 wild card teams that finish with the best records, will receive a playoff berth. The 2 teams that win their division will receive a bye week in the first round of the playoffs. Each playoff matchup will only last one week and the winner will advance. Week 18 will not be used.",
+"h:Seeding Tiebreakers",
+"p:If two teams finish with the same record the tiebreakers will go as followed:",
+"l:Head 2 Head Record","l:Points For","l:Division Record","l:Total Points Against","l:Coin Flip","l:Duel to the death"]],
+["Tanking Policy",[
+"h:League Tanking Policy",
+"p:No team may intentionally leave starting roster spots empty. Any evidence of intentionally leaving roster spots empty to improve your draft position may be subject to punishment, including but not limited to the forfeiture of draft selections.",
+"p:Multiple offenses- 1st- warning 2nd- final warning 3rd- remove draft pick (Draft worse player)"]],
+["Replacing Managers",[
+"h:Removing Managers",
+"p:Reasons for removal may include continuously failing to set a valid lineup, confirmed collusion, or failure to pay league dues by season end. Otherwise, no manager can be removed against their own will. Participation through the league chat, trade offers, and the waiver wire, is strongly encouraged but will not call for removal if failure to do so.",
+"h:Replacing Managers",
+"p:When a manager needs to be replaced, the commissioners will try to find a suitable candidate with some connection to at least a portion of the existing managers. Priority will be placed on managers who are eager to take on a dynasty commitment and will be very active within the league.",
+"h:Replacement Incentives",
+"p:If a manager chooses to quit the league or is removed by a commissioner, an incoming manager may be subject to an incentive. The incentive will be based on the state of the team they adopt is in."]],
+["League Finances",[
+"h:League Dues",
+"p:League dues are set at $15. Dues are collected by a selected commissioner and collection will be sent out no later than the first of August. All managers must be fully paid before the start of Pre-season. If a manager fails to pay before the deadline, a 10% penalty will be added to their payment and will go towards the payouts at the end of the year. If the manager fails to pay before the championship game the result will be an instant removal from the league.",
+"h:Payouts",
+"p:League payout is structured as follows:",
+"l:1st Place: $75","l:2nd Place: $50","l:3rd Place: $25",
+"p:In the event that a manager was fined due to late payment, their extra fee will be added to the winner's payout.",
+"h:Raising Dues",
+"p:A ⅔ majority vote is required to raise league dues. In the event that a manager is no longer financially comfortable with the buy-in, finding a co-manager to split the cost is allowable."]]
+];
 /* ================================== */
 const API = 'https://api.sleeper.app/v1';
 const $ = s => document.querySelector(s);
@@ -156,12 +234,23 @@ const views = {
   },
   async records() { return `<h2>Records</h2><p class="msg">All-time records are coming soon.</p>`; },
   async constitution() {
-    const l = S[0].lg, st = l.settings;
-    return `<h2>Constitution</h2><p class="sub">Dynasty · ${l.total_rosters} teams · playoffs: top ${st.playoff_teams} from Week ${st.playoff_week_start} · trade deadline Week ${st.trade_deadline} · FAAB budget $${st.waiver_budget}</p>
-    ${CONSTITUTION.split(/\n\s*\n/).map(p => `<p>${esc(p)}</p>`).join('')}`;
+    const acc = CONSTITUTION.map(([title, blocks], i) => {
+      let h = '', list = [];
+      const flush = () => { if (list.length) { h += '<ul>' + list.map(x => `<li>${esc(x)}</li>`).join('') + '</ul>'; list = []; } };
+      blocks.forEach(b => {
+        const k = b[0], t = b.slice(2);
+        if (k === 'l') { list.push(t); return; }
+        flush();
+        h += k === 'h' ? `<h4>${esc(t)}</h4>` : `<p>${esc(t)}</p>`;
+      });
+      flush();
+      return `<div class="acc"><button aria-expanded="${i === 0}" onclick="acc(this)">${esc(title)}</button><div class="accb"${i === 0 ? '' : ' hidden'}>${h}</div></div>`;
+    }).join('');
+    return `<h2>317/812 League Constitution</h2><div class="accs">${acc}</div>`;
   }
 };
 const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
+function acc(b){const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!o));b.nextElementSibling.hidden=o;}
 function weekSel(w, v) {
   return `<select onchange="view('${v}',this.value)">${Array.from({length: 18}, (_, i) => `<option value="${i + 1}"${i + 1 == w ? ' selected' : ''}>Week ${i + 1}</option>`).join('')}</select>`;
 }
