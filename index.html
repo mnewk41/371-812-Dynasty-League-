@@ -60,6 +60,13 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .accb[hidden]{display:none}
 .accb h4{margin:18px 0 4px;font:700 15px system-ui,sans-serif;color:var(--accent)}
 .accb p,.accb ul{margin:6px 0}
+.mcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
+.mc{display:flex;gap:14px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-family:system-ui,sans-serif}
+.mc b{font:700 1.1rem Georgia,serif}
+.mc .sub{margin:2px 0}
+.mc .note{margin:8px 0 0;font-size:14px}
+.av2{position:relative;flex:none;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;overflow:hidden}
+.av2 img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 </style>
 </head>
 <body>
@@ -71,6 +78,31 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 <script>
 /* ===== SETTINGS: change these ===== */
 const LEAGUE_ID = '1312128031032086528';   // your current Sleeper league
+// Sleeper username -> real name. Add  note: 'anything you want to share'  to any manager to show it on their card.
+const MANAGERS = {
+  'mnewk41':       {name: 'Mason Newkirk'},
+  'jnewk38':       {name: 'Jared Newkirk'},
+  'BrotherBear75': {name: 'Tyler Combs'},
+  'davidtucker12': {name: 'David Tucker'},
+  'TENNTITAN22':   {name: 'Tommy Reed'},
+  'WillSpeak96':   {name: 'Will Speaker'},
+  'andyrew':       {name: 'Andrew Dickherber'},
+  'AJEW':          {name: 'Aj Prohaska'},
+  'Csmoove_09':    {name: 'Chris White'},
+  'BigJohnson50':  {name: 'Levi Johnson'},
+  // past managers
+  'JakeSteenhoek':     {name: 'Jake SteenHoek'},
+  'TheOutlawJoeyAves': {name: 'Josh Avery'},
+  'ResidentJT':        {name: 'JT Beers'},
+  'evanotte':          {name: 'Evan Otte'},
+  'TyDaBAMF':          {name: 'Ty Gilliam'},
+  'JTBeers11':         {name: 'JT Beers'}   // same person as ResidentJT; history is combined
+};
+// Managers who left and no longer show up in Sleeper's user list (Sleeper user id -> username)
+const KNOWN_IDS = {'711645191072718848': 'TyDaBAMF'};
+// Teams whose owner Sleeper no longer lists (league id:roster id -> user id). TyDaBAMF had Team 6 in 2021.
+const FORMER_ROSTERS = {'711330770425315328:6': '711645191072718848'};
+const realName = d => (MANAGERS[d] && MANAGERS[d].name) || d;
 const CONSTITUTION = [
 ["Section 1: Roster Breakdown",[
 "h:1.1 Positional Breakdown",
@@ -161,7 +193,9 @@ async function init() {
   while (id && id !== '0') {
     const [lg, us, ro] = await Promise.all([get('/league/' + id), get(`/league/${id}/users`), get(`/league/${id}/rosters`)]);
     const names = {}, mgr = {}, rname = {}, rown = {};
-    us.forEach(u => { names[u.user_id] = u.metadata?.team_name || 'Team ' + u.display_name; mgr[u.user_id] = u.display_name; });
+    us.forEach(u => { names[u.user_id] = u.metadata?.team_name || 'Team ' + realName(u.display_name); mgr[u.user_id] = realName(u.display_name); });
+    Object.entries(KNOWN_IDS).forEach(([uid, un]) => { if (!mgr[uid]) { mgr[uid] = realName(un); names[uid] = 'Team ' + realName(un); } });
+    ro.forEach(r => { if (!r.owner_id && FORMER_ROSTERS[id + ':' + r.roster_id]) r.owner_id = FORMER_ROSTERS[id + ':' + r.roster_id]; });
     ro.forEach(r => { rname[r.roster_id] = names[r.owner_id] || 'Roster ' + r.roster_id; rown[r.roster_id] = r.owner_id; });
     let champ = null;
     try { const wb = await get(`/league/${id}/winners_bracket`); const f = wb.find(m => m.p === 1); if (f && lg.status === 'complete') champ = f.w; } catch (e) {}
@@ -202,10 +236,26 @@ const views = {
     return `<h2>Trades and Waivers</h2>${weekSel(w, 'trades')}${items || '<p class="msg">No moves this week.</p>'}`;
   },
   async managers() {
-    const s = S[0], titles = {};
-    S.forEach(x => { if (x.champ) { const u = x.rown[x.champ]; (titles[u] ??= []).push(x.season); } });
-    return `<h2>Managers</h2><div class="scroll"><table><tr><th>Team</th><th>Manager</th><th>Titles</th></tr>
-    ${s.ro.map(r => `<tr><td>${esc(s.rname[r.roster_id])}</td><td>${esc(s.mgr[r.owner_id])}</td><td>${titles[r.owner_id] ? titles[r.owner_id].length + ' (' + titles[r.owner_id].sort().join(', ') + ')' : '–'}</td></tr>`).join('')}</table></div>`;
+    const cur = S[0], T = {}, A = {};
+    const find = id => { for (const x of S) { const u = x.us.find(u => u.user_id === id); if (u) return u; } };
+    const key = id => { const u = find(id); return u && MANAGERS[u.display_name] ? MANAGERS[u.display_name].name : (KNOWN_IDS[id] ? realName(KNOWN_IDS[id]) : id); };
+    S.forEach(x => {
+      x.ro.forEach(r => { if (!r.owner_id) return; const a = A[key(r.owner_id)] ??= {n: 0, w: 0, l: 0, first: 9999, last: 0}; a.n++; a.w += r.settings.wins; a.l += r.settings.losses; a.first = Math.min(a.first, +x.season); a.last = Math.max(a.last, +x.season); });
+      if (x.champ && x.rown[x.champ]) (T[key(x.rown[x.champ])] ??= []).push(x.season);
+    });
+    const cards = cur.ro.map(r => {
+      const u = find(r.owner_id), d = u.display_name, m = MANAGERS[d] || {}, k = key(r.owner_id), a = A[k], t = (T[k] || []).sort();
+      const nm = m.name || d, ini = nm.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+      return {nm, html: `<div class="mc"><div class="av2">${esc(ini)}${u.avatar ? `<img src="https://sleepercdn.com/avatars/thumbs/${esc(u.avatar)}" alt="" onerror="this.remove()">` : ''}</div>
+      <div><b>${esc(nm)}</b><div class="sub">${esc(cur.rname[r.roster_id])}</div><div class="sub">Sleeper: ${esc(d)}</div>
+      <div class="sub">In the league since ${a.first} · ${a.n} season${a.n > 1 ? 's' : ''}</div><div class="sub">All-time record: ${a.w}-${a.l}</div>
+      <div class="sub">Titles: ${t.length ? t.length + ' (' + t.join(', ') + ')' : 'none yet'}</div>${m.note ? `<p class="note">${esc(m.note)}</p>` : ''}</div></div>`};
+    }).sort((x, y) => x.nm.localeCompare(y.nm)).map(x => x.html).join('');
+    const now = new Set(cur.ro.map(r => key(r.owner_id)));
+    const past = Object.keys(A).filter(k => !now.has(k)).map(k => { const a = A[k], t = (T[k] || []).sort();
+      return `<tr><td>${esc(find(k) ? realName(find(k).display_name) : k)}</td><td>${a.first === a.last ? a.first : a.first + '–' + a.last}</td><td>${t.length ? t.join(', ') : '–'}</td></tr>`; }).join('');
+    return `<h2>Managers</h2><p class="sub">Everyone in the league, who they are, and how they've done.</p><div class="mcs">${cards}</div>
+    ${past ? `<h2 style="margin-top:34px">Past managers</h2><div class="scroll"><table><tr><th>Manager</th><th>Seasons</th><th>Titles</th></tr>${past}</table></div>` : ''}`;
   },
   async drafts(yr) {
     yr = yr || S[0].season;
