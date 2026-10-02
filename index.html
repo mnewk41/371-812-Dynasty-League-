@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>317/812 Dynasty</title>
+<style>
+:root{--bg:#f6f4ee;--fg:#14231a;--card:#fff;--accent:#1f7a3d;--muted:#5b6b60;--line:#dcd8cb}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1a12;--fg:#eef3ec;--card:#16261b;--accent:#4cc27a;--muted:#9bb0a1;--line:#243a2b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:Georgia,serif;line-height:1.5}
+.wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+.ticker{position:sticky;top:0;z-index:10;display:flex;background:#0b1f13;color:#eef3ec;border-bottom:2px solid var(--accent);font:600 14px system-ui,sans-serif}
+.lbl{flex:none;background:var(--accent);color:#fff;padding:10px 14px;font-size:12px;display:flex;align-items:center}
+.tw{overflow:hidden;flex:1}.track{display:flex;width:max-content;animation:tick 60s linear infinite}.track:hover{animation-play-state:paused}.set{display:flex}
+.item{padding:10px 24px;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15)}.item.live{color:#ff6b6b}
+@keyframes tick{to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.track{animation:none}.tw{overflow-x:auto}}
+header{padding:56px 20px 36px;text-align:center;border-bottom:4px solid var(--accent)}
+h1{font-size:clamp(2.2rem,7vw,3.8rem);margin:0 0 8px;line-height:1.05}
+header p{color:var(--muted);margin:0}
+.tabs{display:flex;gap:8px;overflow-x:auto;max-width:1000px;margin:0 auto;padding:16px 20px;border-bottom:1px solid var(--line)}
+.tabs button,.bub{flex:none;font:600 14px system-ui,sans-serif;padding:9px 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+.tabs button[aria-selected=true],.bub[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+main{padding:28px 20px 60px;min-height:60vh}
+h2{margin:0 0 14px;font-size:1.6rem}
+.sub,.msg{color:var(--muted);font:14px system-ui,sans-serif}
+.bubs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+select{font:600 14px system-ui,sans-serif;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);margin-bottom:14px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font:15px system-ui,sans-serif}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-size:12px;text-transform:uppercase}
+.mus{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:30px}
+.mu,.tx{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-family:system-ui,sans-serif}
+.row{display:flex;justify-content:space-between;gap:10px;padding:8px 0}.row+.row{border-top:1px solid var(--line)}
+.rec{color:var(--muted);font-size:13px;margin-left:4px}
+.rafters{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;border-top:6px solid var(--line);padding-top:14px}
+.banner{width:140px;background:var(--accent);color:#fff;text-align:center;padding:26px 12px 44px;font-family:system-ui,sans-serif;clip-path:polygon(0 0,100% 0,100% 88%,50% 100%,0 88%);margin-top:-14px;transform-origin:50% 0;animation:sway 4.5s ease-in-out infinite alternate}
+.banner:nth-child(even){animation-duration:5.4s;animation-delay:-2s}
+.banner .yr{font:700 2rem/1 Georgia,serif;display:block;margin:8px 0 10px}.banner b{display:block;font-size:.95rem}.banner small{opacity:.85}
+@keyframes sway{from{transform:rotate(-2.5deg)}to{transform:rotate(2.5deg)}}
+@media(prefers-reduced-motion:reduce){.banner{animation:none}}
+.board{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px;font-family:system-ui,sans-serif;margin-bottom:26px}
+@media(max-width:720px){.board{min-width:720px}}
+.bh{padding:4px 2px;text-align:center;font-size:10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:700}
+.pk{position:relative;background:var(--card);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:6px;padding:12px 3px 5px;text-align:center;min-height:96px}
+.pk i{position:absolute;top:2px;left:4px;font-style:normal;font-size:9px;color:var(--muted)}
+.pk img{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--c);display:block;margin:2px auto 4px}
+.pk strong{display:block;font-size:10.5px;line-height:1.2;overflow-wrap:anywhere}
+.pk .pm{display:block;font-size:9.5px;color:var(--c);font-weight:600}.pk em{display:block;font-style:normal;font-size:9px;color:var(--muted)}
+.tx img{width:28px;height:28px;border-radius:50%;vertical-align:middle;margin-right:6px;background:var(--line)}
+.add{color:var(--accent)}.drop{color:#c0392b}
+</style>
+</head>
+<body>
+<div class="ticker"><div class="lbl">NFL</div><div class="tw"><div class="track" id="tk"></div></div></div>
+<header><h1 id="ttl">League</h1><p id="tag"></p></header>
+<nav class="tabs" id="tabs" role="tablist"></nav>
+<main class="wrap" id="main">Loading…</main>
+
+<script>
+/* ===== SETTINGS: change these ===== */
+const LEAGUE_ID = '1312128031032086528';   // your current Sleeper league
+const CONSTITUTION = 'Paste your league constitution here. Use blank lines between paragraphs.';
+/* ================================== */
+const API = 'https://api.sleeper.app/v1';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const get = async p => { const r = await fetch(API + p); if (!r.ok) throw new Error(p + ' ' + r.status); return r.json(); };
+const COL = {QB:'#ff2a6d',RB:'#00ceb8',WR:'#58a7ff',TE:'#ffae58',K:'#b266ff',DEF:'#c08a4a'};
+const photo = id => /^\d+$/.test(id) ? `https://sleepercdn.com/content/nfl/players/thumb/${id}.jpg` : `https://sleepercdn.com/images/team_logos/nfl/${String(id).toLowerCase()}.png`;
+const rec = r => `${r.settings.wins}-${r.settings.losses}`;
+const pts = r => r.settings.fpts + (r.settings.fpts_decimal || 0) / 100;
+let S = [], PL = null;
+
+async function init() {
+  let id = LEAGUE_ID;
+  while (id && id !== '0') {
+    const [lg, us, ro] = await Promise.all([get('/league/' + id), get(`/league/${id}/users`), get(`/league/${id}/rosters`)]);
+    const names = {}, mgr = {}, rname = {}, rown = {};
+    us.forEach(u => { names[u.user_id] = u.metadata?.team_name || 'Team ' + u.display_name; mgr[u.user_id] = u.display_name; });
+    ro.forEach(r => { rname[r.roster_id] = names[r.owner_id] || 'Roster ' + r.roster_id; rown[r.roster_id] = r.owner_id; });
+    let champ = null;
+    try { const wb = await get(`/league/${id}/winners_bracket`); const f = wb.find(m => m.p === 1); if (f && lg.status === 'complete') champ = f.w; } catch (e) {}
+    S.push({id, lg, us, ro, names, mgr, rname, rown, champ, season: lg.season});
+    id = lg.previous_league_id;
+  }
+  $('#ttl').textContent = S[0].lg.name.trim();
+  $('#tag').textContent = `Dynasty · ${S[0].lg.total_rosters} teams · ${S[0].season} season`;
+  go();
+}
+
+/* ---------- views ---------- */
+const views = {
+  async matchups(w) {
+    const s = S[0], cur = s.lg.settings.leg || 1; w = w || cur;
+    const m = await get(`/league/${s.id}/matchups/${w}`), g = {};
+    m.forEach(x => (g[x.matchup_id] ??= []).push(x));
+    const rr = Object.fromEntries(s.ro.map(r => [r.roster_id, r]));
+    const cards = Object.values(g).map(p => `<div class="mu">${p.map(x => `<div class="row"><span>${esc(s.rname[x.roster_id])} <span class="rec">${rec(rr[x.roster_id])}</span></span><b>${(x.points || 0).toFixed(2)}</b></div>`).join('')}</div>`).join('');
+    const st = [...s.ro].sort((a, b) => b.settings.wins - a.settings.wins || pts(b) - pts(a));
+    const cut = s.lg.settings.playoff_teams || 6;
+    return `<h2>Matchups</h2>${weekSel(w, 'matchups')}<div class="mus">${cards || '<p class="msg">No matchups for this week yet.</p>'}</div>
+    <h2>Standings</h2><p class="sub">Top ${cut} make the playoffs. Ties broken by points scored.</p><div class="scroll"><table><tr><th>#</th><th>Team</th><th>Manager</th><th>W-L</th><th>PF</th></tr>
+    ${st.map((r, i) => `<tr${i < cut ? ' style="border-left:3px solid var(--accent)"' : ''}><td>${i + 1}</td><td>${esc(s.rname[r.roster_id])}</td><td>${esc(s.mgr[r.owner_id])}</td><td>${rec(r)}</td><td>${pts(r).toFixed(2)}</td></tr>`).join('')}</table></div>`;
+  },
+  async trades(w) {
+    const s = S[0]; w = w || s.lg.settings.leg || 1;
+    const [tx] = await Promise.all([get(`/league/${s.id}/transactions/${w}`), PL ? 0 : get('/players/nfl').then(p => PL = p)]);
+    const nm = id => PL[id] ? (PL[id].full_name || PL[id].last_name || PL[id].player_id) : id;
+    const pl = (id, c, sign) => `<div class="${c}"><img src="${photo(id)}" alt="" onerror="this.style.visibility='hidden'">${sign} ${esc(nm(id))}</div>`;
+    const items = tx.filter(t => t.status === 'complete').sort((a, b) => b.created - a.created).map(t => {
+      const teams = t.roster_ids.map(r => esc(s.rname[r])).join(' ↔ ');
+      const adds = Object.entries(t.adds || {}).map(([p, r]) => pl(p, 'add', '+') ).join('');
+      const drops = Object.entries(t.drops || {}).map(([p]) => pl(p, 'drop', '−')).join('');
+      const kind = t.type === 'trade' ? 'Trade' : t.type === 'waiver' ? 'Waiver claim' : 'Free agent';
+      return `<div class="tx"><div class="sub"><b>${kind}</b> · ${teams} · ${new Date(t.created).toLocaleDateString()}</div>${adds}${drops}</div>`;
+    }).join('<div style="height:10px"></div>');
+    return `<h2>Trades and Waivers</h2>${weekSel(w, 'trades')}${items || '<p class="msg">No moves this week.</p>'}`;
+  },
+  async managers() {
+    const s = S[0], titles = {};
+    S.forEach(x => { if (x.champ) { const u = x.rown[x.champ]; (titles[u] ??= []).push(x.season); } });
+    return `<h2>Managers</h2><div class="scroll"><table><tr><th>Team</th><th>Manager</th><th>Titles</th></tr>
+    ${s.ro.map(r => `<tr><td>${esc(s.rname[r.roster_id])}</td><td>${esc(s.mgr[r.owner_id])}</td><td>${titles[r.owner_id] ? titles[r.owner_id].length + ' (' + titles[r.owner_id].sort().join(', ') + ')' : '–'}</td></tr>`).join('')}</table></div>`;
+  },
+  async drafts(yr) {
+    yr = yr || S[0].season;
+    const s = S.find(x => x.season === yr) || S[0];
+    const bubs = `<div class="bubs">${S.map(x => `<button class="bub" aria-pressed="${x.season === s.season}" onclick="view('drafts','${x.season}')">${x.season}</button>`).join('')}</div>`;
+    const ds = (await get(`/league/${s.id}/drafts`)).filter(d => d.status === 'complete').sort((a, b) => a.start_time - b.start_time);
+    let out = '';
+    for (const d of ds) {
+      const picks = await get(`/draft/${d.draft_id}/picks`);
+      if (!picks.length) continue;
+      const T = d.settings.teams, R = d.settings.rounds, slotUser = {};
+      Object.entries(d.draft_order || {}).forEach(([u, sl]) => slotUser[sl] = u);
+      const cell = {}; picks.forEach(p => cell[p.round + '-' + p.draft_slot] = p);
+      let b = `<div class="scroll"><div class="board" style="grid-template-columns:repeat(${T},minmax(0,1fr))">`;
+      for (let sl = 1; sl <= T; sl++) b += `<div class="bh">${esc(s.names[slotUser[sl]] || s.mgr[slotUser[sl]] || 'Slot ' + sl)}</div>`;
+      for (let r = 1; r <= R; r++) for (let sl = 1; sl <= T; sl++) {
+        const p = cell[r + '-' + sl]; if (!p) { b += '<div></div>'; continue; }
+        const m = p.metadata || {}, pos = m.position || 'WR', c = COL[pos] || '#888';
+        const nmx = pos === 'DEF' ? (m.first_name + ' D/ST') : (m.first_name || '?')[0] + '. ' + (m.last_name || '');
+        const via = p.picked_by && slotUser[sl] && p.picked_by !== slotUser[sl] ? `<em>via ${esc(s.names[p.picked_by] || s.mgr[p.picked_by] || '')}</em>` : '';
+        b += `<div class="pk" style="--c:${c}"><i>${r}.${String(p.pick_no - (r - 1) * T).padStart(2, '0')}</i><img src="${photo(p.player_id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><strong>${esc(nmx)}</strong><span class="pm">${esc(pos)} · ${esc(m.team || 'FA')}</span>${via}</div>`;
+      }
+      out += `<p class="sub">${s.season} draft · ${R} rounds · ${d.type}</p>${b}</div></div>`;
+    }
+    return `<h2>Drafts</h2>${bubs}${out || '<p class="msg">No draft results recorded for this season.</p>'}`;
+  },
+  async trophy() {
+    const b = S.filter(x => x.champ).map(x => `<div class="banner"><span>★</span><span class="yr">${x.season}</span><b>${esc(x.rname[x.champ])}</b><small>${esc(x.mgr[x.rown[x.champ]])}</small></div>`).join('');
+    return `<h2>Trophy Room</h2><div class="rafters">${b || '<p class="msg">No champions yet.</p>'}</div>`;
+  },
+  async records() { return `<h2>Records</h2><p class="msg">All-time records are coming soon.</p>`; },
+  async constitution() {
+    const l = S[0].lg, st = l.settings;
+    return `<h2>Constitution</h2><p class="sub">Dynasty · ${l.total_rosters} teams · playoffs: top ${st.playoff_teams} from Week ${st.playoff_week_start} · trade deadline Week ${st.trade_deadline} · FAAB budget $${st.waiver_budget}</p>
+    ${CONSTITUTION.split(/\n\s*\n/).map(p => `<p>${esc(p)}</p>`).join('')}`;
+  }
+};
+const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
+function weekSel(w, v) {
+  return `<select onchange="view('${v}',this.value)">${Array.from({length: 18}, (_, i) => `<option value="${i + 1}"${i + 1 == w ? ' selected' : ''}>Week ${i + 1}</option>`).join('')}</select>`;
+}
+async function view(name, arg) {
+  $('#tabs').querySelectorAll('button').forEach(b => b.setAttribute('aria-selected', b.dataset.t === name));
+  $('#main').innerHTML = '<p class="msg">Loading…</p>';
+  try { $('#main').innerHTML = await views[name](arg); }
+  catch (e) { $('#main').innerHTML = `<p class="msg">Couldn't load this tab (${esc(e.message)}). Refresh to try again.</p>`; }
+}
+function go() {
+  $('#tabs').innerHTML = TABS.map(([k, n]) => `<button role="tab" data-t="${k}" onclick="location.hash='${k}'">${n}</button>`).join('');
+  const h = () => view(TABS.some(t => t[0] === location.hash.slice(1)) ? location.hash.slice(1) : 'matchups');
+  addEventListener('hashchange', h); h();
+}
+
+/* ---------- NFL ticker (ESPN public scoreboard, refreshes every minute) ---------- */
+async function tick() {
+  try {
+    const d = await (await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')).json();
+    const it = d.events.map(e => {
+      const c = e.competitions[0].competitors, a = c.find(x => x.homeAway === 'away'), h = c.find(x => x.homeAway === 'home'), st = e.status.type;
+      const t = st.state === 'pre' ? `${a.team.abbreviation} @ ${h.team.abbreviation}` : `${a.team.abbreviation} ${a.score} @ ${h.team.abbreviation} ${h.score}`;
+      return `<span class="item${st.state === 'in' ? ' live' : ''}">${esc(t)} · ${esc(st.shortDetail)}</span>`;
+    }).join('');
+    $('#tk').innerHTML = `<div class="set">${it}</div><div class="set" aria-hidden="true">${it}</div>`;
+  } catch (e) {}
+}
+tick(); setInterval(tick, 60000);
+init().catch(e => { $('#main').innerHTML = `<p class="msg">Couldn't reach Sleeper (${esc(e.message)}). Refresh to try again.</p>`; });
+</script>
+</body>
+</html>
