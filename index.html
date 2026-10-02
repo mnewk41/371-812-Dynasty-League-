@@ -272,6 +272,7 @@ const views = {
       const T = d.settings.teams, R = d.settings.rounds, slotUser = {};
       Object.entries(d.draft_order || {}).forEach(([u, sl]) => slotUser[sl] = u);
       const cell = {}; picks.forEach(p => cell[p.round + '-' + p.draft_slot] = p);
+      for (let sl = 1; sl <= T; sl++) if (!slotUser[sl] && cell['1-' + sl]) slotUser[sl] = cell['1-' + sl].picked_by;
       let b = `<div class="scroll"><div class="board" style="grid-template-columns:repeat(${T},minmax(0,1fr))">`;
       for (let sl = 1; sl <= T; sl++) b += `<div class="bh">${esc(s.names[slotUser[sl]] || s.mgr[slotUser[sl]] || 'Slot ' + sl)}</div>`;
       for (let r = 1; r <= R; r++) for (let sl = 1; sl <= T; sl++) {
