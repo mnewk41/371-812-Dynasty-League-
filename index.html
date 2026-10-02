@@ -99,7 +99,7 @@ const MANAGERS = {
   'JTBeers11':         {name: 'JT Beers'}   // same person as ResidentJT; history is combined
 };
 // Managers who left and no longer show up in Sleeper's user list (Sleeper user id -> username)
-const KNOWN_IDS = {'711645191072718848': 'TyDaBAMF'};
+const KNOWN_IDS = {'711645191072718848': 'TyDaBAMF', '872221509358432256': 'TheOutlawJoeyAves'};  // second one: Josh Avery's 2025 account (slot 4)
 // Other Sleeper accounts used by the same person (account -> main username)
 const ALIASES = {'Sleeperbot12345': 'TheOutlawJoeyAves'};
 // Teams whose owner Sleeper no longer lists (league id:roster id -> user id). TyDaBAMF had Team 6 in 2021.
@@ -197,7 +197,7 @@ async function init() {
     const names = {}, mgr = {}, rname = {}, rown = {};
     us.forEach(u => { names[u.user_id] = u.metadata?.team_name || 'Team ' + realName(u.display_name); mgr[u.user_id] = realName(u.display_name); });
     us.forEach(u => { if (ALIASES[u.display_name]) names[u.user_id] = 'Team ' + realName(u.display_name); });
-    Object.entries(KNOWN_IDS).forEach(([uid, un]) => { if (!mgr[uid]) { mgr[uid] = realName(un); names[uid] = 'Team ' + realName(un); } });
+    Object.entries(KNOWN_IDS).forEach(([uid, un]) => { mgr[uid] = realName(un); names[uid] = 'Team ' + realName(un); });
     ro.forEach(r => { if (!r.owner_id && FORMER_ROSTERS[id + ':' + r.roster_id]) r.owner_id = FORMER_ROSTERS[id + ':' + r.roster_id]; });
     ro.forEach(r => { rname[r.roster_id] = names[r.owner_id] || 'Roster ' + r.roster_id; rown[r.roster_id] = r.owner_id; });
     let champ = null;
