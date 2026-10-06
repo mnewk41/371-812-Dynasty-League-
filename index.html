@@ -100,6 +100,7 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .pr .pt{flex:none;font-weight:700}
 .tl{width:22px;height:22px;object-fit:contain;vertical-align:middle;margin:0 5px 2px 0}
 .item .tl:not(:first-child){margin-left:4px}
+.cm{display:inline-block;font:700 10px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.05em;background:var(--accent);color:#fff;padding:2px 7px;border-radius:999px;vertical-align:middle;margin-left:4px}
 </style>
 </head>
 <body>
@@ -138,6 +139,8 @@ const KNOWN_IDS = {'711645191072718848': 'TyDaBAMF', '872221509358432256': 'TheO
 const ALIASES = {'Sleeperbot12345': 'TheOutlawJoeyAves'};
 // Teams whose owner Sleeper no longer lists (league id:roster id -> user id). TyDaBAMF had Team 6 in 2021.
 const FORMER_ROSTERS = {'711330770425315328:6': '711645191072718848'};
+// Commissioners by Sleeper username. The league creator Sleeper marks as owner is always shown too. Add more names here.
+const COMMISSIONERS = ['mnewk41'];
 const realName = d => { d = ALIASES[d] || d; return (MANAGERS[d] && MANAGERS[d].name) || d; };
 const CONSTITUTION = [
 ["Section 1: Roster Breakdown",[
@@ -284,14 +287,15 @@ const views = {
       x.ro.forEach(r => { if (!r.owner_id) return; const a = A[key(r.owner_id)] ??= {n: 0, w: 0, l: 0, first: 9999, last: 0}; a.n++; a.w += r.settings.wins; a.l += r.settings.losses; a.first = Math.min(a.first, +x.season); a.last = Math.max(a.last, +x.season); });
       if (x.champ && x.rown[x.champ]) (T[key(x.rown[x.champ])] ??= []).push(x.season);
     });
-    const cards = cur.ro.map(r => {
+    const cl = cur.ro.map(r => {
       const u = find(r.owner_id), d = u.display_name, m = MANAGERS[d] || {}, k = key(r.owner_id), a = A[k], t = (T[k] || []).sort();
-      const nm = m.name || d, ini = nm.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-      return {nm, html: `<div class="mc"><div class="av2">${esc(ini)}${u.avatar ? `<img src="https://sleepercdn.com/avatars/thumbs/${esc(u.avatar)}" alt="" onerror="this.remove()">` : ''}</div>
-      <div><b>${esc(nm)}</b><div class="sub">${esc(cur.rname[r.roster_id])}</div><div class="sub">Sleeper: ${esc(d)}</div>
+      const isC = COMMISSIONERS.includes(d) || !!u.is_owner, nm = m.name || d, ini = nm.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+      return {nm, c: isC, html: `<div class="mc"><div class="av2">${esc(ini)}${u.avatar ? `<img src="https://sleepercdn.com/avatars/thumbs/${esc(u.avatar)}" alt="" onerror="this.remove()">` : ''}</div>
+      <div><b>${esc(nm)}</b>${isC ? ' <span class="cm">Commissioner</span>' : ''}<div class="sub">${esc(cur.rname[r.roster_id])}</div><div class="sub">Sleeper: ${esc(d)}</div>
       <div class="sub">In the league since ${a.first} · ${a.n} season${a.n > 1 ? 's' : ''}</div><div class="sub">All-time record: ${a.w}-${a.l}</div>
       <div class="sub">Titles: ${t.length ? t.length + ' (' + t.join(', ') + ')' : 'none yet'}</div>${m.note ? `<p class="note">${esc(m.note)}</p>` : ''}</div></div>`};
-    }).sort((x, y) => x.nm.localeCompare(y.nm)).map(x => x.html).join('');
+    }).sort((x, y) => x.nm.localeCompare(y.nm));
+    const cards = cl.map(x => x.html).join(''), comm = cl.filter(x => x.c).map(x => x.nm);
     const R = {};
     await Promise.all(S.map(async x => (await seasonPairs(x)).forEach(p => {
       const a = x.mgr[x.rown[p.a.roster_id]], b = x.mgr[x.rown[p.b.roster_id]], RA = R[a] ??= {w: 0, l: 0, t: 0}, RB = R[b] ??= {w: 0, l: 0, t: 0};
@@ -300,7 +304,7 @@ const views = {
     const now = new Set(cur.ro.map(r => key(r.owner_id)));
     const past = Object.keys(A).filter(k => !now.has(k)).map(k => { const a = A[k], t = (T[k] || []).sort();
       return `<tr><td>${esc(find(k) ? realName(find(k).display_name) : k)}</td><td>${a.first === a.last ? a.first : a.first + '–' + a.last}</td><td>${R[k] ? R[k].w + '-' + R[k].l + (R[k].t ? '-' + R[k].t : '') : '–'}</td><td>${t.length ? t.join(', ') : '–'}</td></tr>`; }).join('');
-    return `<h2>Managers</h2><p class="sub">Everyone in the league, who they are, and how they've done.</p><div class="mcs">${cards}</div>
+    return `<h2>Managers</h2><p class="sub">Everyone in the league, who they are, and how they've done.</p>${comm.length ? `<p><b>Commissioner${comm.length > 1 ? 's' : ''}:</b> ${esc(comm.join(', '))}</p>` : ''}<div class="mcs">${cards}</div>
     ${past ? `<h2 style="margin-top:34px">Retired managers</h2><p class="sub">All-time record counts regular-season head-to-head games only.</p><div class="scroll"><table><tr><th>Manager</th><th>Seasons</th><th>All-time record</th><th>Titles</th></tr>${past}</table></div>` : ''}`;
   },
   async drafts(yr) {
