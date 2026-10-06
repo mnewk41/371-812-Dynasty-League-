@@ -221,7 +221,7 @@ const COL = {QB:'#ff2a6d',RB:'#00ceb8',WR:'#58a7ff',TE:'#ffae58',K:'#b266ff',DEF
 const photo = id => /^\d+$/.test(id) ? `https://sleepercdn.com/content/nfl/players/thumb/${id}.jpg` : `https://sleepercdn.com/images/team_logos/nfl/${String(id).toLowerCase()}.png`;
 const rec = r => `${r.settings.wins}-${r.settings.losses}`;
 const pts = r => r.settings.fpts + (r.settings.fpts_decimal || 0) / 100;
-let S = [], PL = null;
+let S = [], PL = null, RECS = null;
 
 async function init() {
   let id = LEAGUE_ID;
@@ -327,7 +327,39 @@ const views = {
     const b = S.filter(x => x.champ).map(x => `<div class="banner"><span>★</span><span class="yr">${x.season}</span><b>${esc(x.rname[x.champ])}</b><small>${esc(x.mgr[x.rown[x.champ]])}</small></div>`).join('');
     return `<h2>Trophy Room</h2><div class="rafters">${b || '<p class="msg">No champions yet.</p>'}</div>`;
   },
-  async records() { return `<h2>Records</h2><p class="msg">All-time records are coming soon.</p>`; },
+  async records() {
+    if (RECS) return RECS;
+    const tw = [], mu = [], seasons = [];
+    await Promise.all(S.map(async s => {
+      const st = s.lg.settings, last = (st.playoff_week_start || 15) - 1, done = s.lg.status === 'complete' ? last : Math.min(last, st.last_scored_leg || 0);
+      if (s.lg.status === 'complete') s.ro.forEach(r => seasons.push({s, rid: r.roster_id, v: pts(r)}));
+      const ws = await Promise.all(Array.from({length: done}, (_, i) => get(`/league/${s.id}/matchups/${i + 1}`).catch(() => [])));
+      ws.forEach((m, i) => {
+        const g = {}; m.forEach(x => (g[x.matchup_id] ??= []).push(x));
+        Object.values(g).forEach(pr => {
+          if (pr.length !== 2 || !(pr[0].points > 0) || !(pr[1].points > 0)) return;
+          pr.forEach(x => tw.push({s, week: i + 1, rid: x.roster_id, v: x.points}));
+          const [a, b] = pr[0].points >= pr[1].points ? pr : [pr[1], pr[0]];
+          if (a.points > b.points) mu.push({s, week: i + 1, w: a, l: b, m: a.points - b.points});
+        });
+      });
+    }));
+    const who = (s, rid) => `<td>${esc(s.mgr[s.rown[rid]] || 'Unknown')}</td><td>${esc(s.rname[rid])}</td>`;
+    const f = v => Number(v).toFixed(2), top = (a, fn, n = 10) => [...a].sort(fn).slice(0, n);
+    const tbl = (title, heads, rows) => `<h3 class="rd">${title}</h3><div class="scroll"><table><tr><th>#</th>${heads.map(h => `<th>${h}</th>`).join('')}</tr>${rows.map((r, i) => `<tr><td>${i + 1}</td>${r}</tr>`).join('')}</table></div>`;
+    const wk = r => `<td>${r.s.season} · Week ${r.week}</td>`;
+    const teamHeads = ['Manager', 'Team', 'When', 'Points'];
+    const mHeads = ['Winner', 'Score', 'Loser', 'Score', 'Margin', 'When'];
+    const mRow = r => `<td>${esc(r.s.mgr[r.s.rown[r.w.roster_id]] || '?')}<br><small class="sub">${esc(r.s.rname[r.w.roster_id])}</small></td><td><b>${f(r.w.points)}</b></td><td>${esc(r.s.mgr[r.s.rown[r.l.roster_id]] || '?')}<br><small class="sub">${esc(r.s.rname[r.l.roster_id])}</small></td><td>${f(r.l.points)}</td><td><b>${f(r.m)}</b></td><td>${r.s.season} · Week ${r.week}</td>`;
+    RECS = `<h2>Records</h2><p class="sub">Regular-season games from every season of the league. The current season counts weeks that are finished.</p>
+      ${tbl('Highest single-week score', teamHeads, top(tw, (a, b) => b.v - a.v).map(r => who(r.s, r.rid) + wk(r) + `<td><b>${f(r.v)}</b></td>`))}
+      ${tbl('Lowest single-week score', teamHeads, top(tw, (a, b) => a.v - b.v).map(r => who(r.s, r.rid) + wk(r) + `<td><b>${f(r.v)}</b></td>`))}
+      ${tbl('Most points in a season', ['Manager', 'Team', 'Season', 'Points'], top(seasons, (a, b) => b.v - a.v).map(r => who(r.s, r.rid) + `<td>${r.s.season}</td><td><b>${f(r.v)}</b></td>`))}
+      ${tbl('Fewest points in a season', ['Manager', 'Team', 'Season', 'Points'], top(seasons, (a, b) => a.v - b.v).map(r => who(r.s, r.rid) + `<td>${r.s.season}</td><td><b>${f(r.v)}</b></td>`))}
+      ${tbl('Largest blowouts', mHeads, top(mu, (a, b) => b.m - a.m).map(mRow))}
+      ${tbl('Narrowest victories', mHeads, top(mu, (a, b) => a.m - b.m).map(mRow))}`;
+    return RECS;
+  },
   async constitution() {
     const acc = CONSTITUTION.map(([title, blocks], i) => {
       let h = '', list = [];
