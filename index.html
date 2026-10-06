@@ -292,11 +292,16 @@ const views = {
       <div class="sub">In the league since ${a.first} · ${a.n} season${a.n > 1 ? 's' : ''}</div><div class="sub">All-time record: ${a.w}-${a.l}</div>
       <div class="sub">Titles: ${t.length ? t.length + ' (' + t.join(', ') + ')' : 'none yet'}</div>${m.note ? `<p class="note">${esc(m.note)}</p>` : ''}</div></div>`};
     }).sort((x, y) => x.nm.localeCompare(y.nm)).map(x => x.html).join('');
+    const R = {};
+    await Promise.all(S.map(async x => (await seasonPairs(x)).forEach(p => {
+      const a = x.mgr[x.rown[p.a.roster_id]], b = x.mgr[x.rown[p.b.roster_id]], RA = R[a] ??= {w: 0, l: 0, t: 0}, RB = R[b] ??= {w: 0, l: 0, t: 0};
+      if (p.tie) { RA.t++; RB.t++; } else { RA.w++; RB.l++; }
+    })));
     const now = new Set(cur.ro.map(r => key(r.owner_id)));
     const past = Object.keys(A).filter(k => !now.has(k)).map(k => { const a = A[k], t = (T[k] || []).sort();
-      return `<tr><td>${esc(find(k) ? realName(find(k).display_name) : k)}</td><td>${a.first === a.last ? a.first : a.first + '–' + a.last}</td><td>${t.length ? t.join(', ') : '–'}</td></tr>`; }).join('');
+      return `<tr><td>${esc(find(k) ? realName(find(k).display_name) : k)}</td><td>${a.first === a.last ? a.first : a.first + '–' + a.last}</td><td>${R[k] ? R[k].w + '-' + R[k].l + (R[k].t ? '-' + R[k].t : '') : '–'}</td><td>${t.length ? t.join(', ') : '–'}</td></tr>`; }).join('');
     return `<h2>Managers</h2><p class="sub">Everyone in the league, who they are, and how they've done.</p><div class="mcs">${cards}</div>
-    ${past ? `<h2 style="margin-top:34px">Retired managers</h2><div class="scroll"><table><tr><th>Manager</th><th>Seasons</th><th>Titles</th></tr>${past}</table></div>` : ''}`;
+    ${past ? `<h2 style="margin-top:34px">Retired managers</h2><p class="sub">All-time record counts regular-season head-to-head games only.</p><div class="scroll"><table><tr><th>Manager</th><th>Seasons</th><th>All-time record</th><th>Titles</th></tr>${past}</table></div>` : ''}`;
   },
   async drafts(yr) {
     yr = yr || S[0].season;
