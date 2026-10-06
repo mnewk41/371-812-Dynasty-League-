@@ -252,12 +252,14 @@ const views = {
     const rr = Object.fromEntries(s.ro.map(r => [r.roster_id, r]));
     const cards = Object.entries(g).map(([mid, p]) => `<div class="mu click" tabindex="0" role="button" onclick="openMu(${w},${mid})" onkeydown="if(event.key==='Enter')openMu(${w},${mid})">${p.map(x => `<div class="row"><span>${esc(s.rname[x.roster_id])} <span class="rec">${rec(rr[x.roster_id])}</span></span><b>${(x.points || 0).toFixed(2)}</b></div>`).join('')}</div>`).join('');
     setTimeout(oddsFill, 0);
+    const hasMed = !!s.lg.settings.league_average_match, H = h2hOf(await seasonPairs(s));
+    const split = r => { const h = H[r.roster_id] || {w: 0, l: 0, t: 0}; return `<td>${h.w}-${h.l}${h.t ? '-' + h.t : ''}</td><td>${Math.max(0, r.settings.wins - h.w)}-${Math.max(0, r.settings.losses - h.l)}</td>`; };
     const st = [...s.ro].sort((a, b) => b.settings.wins - a.settings.wins || pts(b) - pts(a));
     const cut = s.lg.settings.playoff_teams || 6;
     return `<h2>Matchups</h2>${weekSel(w, 'matchups')}<p class="sub">Tap a matchup to see both rosters and live scoring.</p><div class="mus">${cards || '<p class="msg">No matchups for this week yet.</p>'}</div>
     <h2>Playoff odds</h2><div id="odds"><p class="msg">Running the numbers…</p></div>
-    <h2>Standings</h2><p class="sub">Top ${cut} make the playoffs. Ties broken by points scored.</p><div class="scroll"><table><tr><th>#</th><th>Team</th><th>Manager</th><th>W-L</th><th>PF</th></tr>
-    ${st.map((r, i) => `<tr${i < cut ? ' style="border-left:3px solid var(--accent)"' : ''}><td>${i + 1}</td><td>${esc(s.rname[r.roster_id])}</td><td>${esc(s.mgr[r.owner_id])}</td><td>${rec(r)}</td><td>${pts(r).toFixed(2)}</td></tr>`).join('')}</table></div>`;
+    <h2>Standings</h2><p class="sub">Top ${cut} make the playoffs. Ties broken by points scored.</p><div class="scroll"><table><tr><th>#</th><th>Team</th><th>Manager</th><th>W-L</th>${hasMed ? '<th>Head-to-head</th><th>Median</th>' : ''}<th>PF</th></tr>
+    ${st.map((r, i) => `<tr${i < cut ? ' style="border-left:3px solid var(--accent)"' : ''}><td>${i + 1}</td><td>${esc(s.rname[r.roster_id])}</td><td>${esc(s.mgr[r.owner_id])}</td><td>${rec(r)}</td>${hasMed ? split(r) : ''}<td>${pts(r).toFixed(2)}</td></tr>`).join('')}</table></div>${hasMed ? '<p class="sub" style="margin-top:10px">W-L is the record Sleeper uses for the playoffs, which also counts a win or loss against the league median each week. Head-to-head and Median split it into real matchups and median results.</p>' : ''}`;
   },
   async trades(w) {
     const s = S[0]; w = w || s.lg.settings.leg || 1;
@@ -329,19 +331,19 @@ const views = {
   },
   async records() {
     if (RECS) return RECS;
-    const tw = [], mu = [], seasons = [];
+    const tw = [], mu = [], seasons = [], M = {};
+    const mg = n => M[n] ??= {n, ss: new Set(), w: 0, l: 0, t: 0, pf: 0, pa: 0, mw: 0, ml: 0, ti: 0};
     await Promise.all(S.map(async s => {
-      const st = s.lg.settings, last = (st.playoff_week_start || 15) - 1, done = s.lg.status === 'complete' ? last : Math.min(last, st.last_scored_leg || 0);
+      const prs = await seasonPairs(s), nm = rid => s.mgr[s.rown[rid]] || 'Unknown', hm = !!s.lg.settings.league_average_match, H = h2hOf(prs);
       if (s.lg.status === 'complete') s.ro.forEach(r => seasons.push({s, rid: r.roster_id, v: pts(r)}));
-      const ws = await Promise.all(Array.from({length: done}, (_, i) => get(`/league/${s.id}/matchups/${i + 1}`).catch(() => [])));
-      ws.forEach((m, i) => {
-        const g = {}; m.forEach(x => (g[x.matchup_id] ??= []).push(x));
-        Object.values(g).forEach(pr => {
-          if (pr.length !== 2 || !(pr[0].points > 0) || !(pr[1].points > 0)) return;
-          pr.forEach(x => tw.push({s, week: i + 1, rid: x.roster_id, v: x.points}));
-          const [a, b] = pr[0].points >= pr[1].points ? pr : [pr[1], pr[0]];
-          if (a.points > b.points) mu.push({s, week: i + 1, w: a, l: b, m: a.points - b.points});
-        });
+      s.ro.forEach(r => { const m = mg(nm(r.roster_id)); m.ss.add(s.season); const h = H[r.roster_id] || {w: 0, l: 0};
+        if (hm) { m.mw += Math.max(0, r.settings.wins - h.w); m.ml += Math.max(0, r.settings.losses - h.l); } });
+      if (s.champ) mg(nm(s.champ)).ti++;
+      prs.forEach(p => {
+        [p.a, p.b].forEach(x => tw.push({s, week: p.week, rid: x.roster_id, v: x.points}));
+        const A = mg(nm(p.a.roster_id)), B = mg(nm(p.b.roster_id));
+        A.pf += p.a.points; A.pa += p.b.points; B.pf += p.b.points; B.pa += p.a.points;
+        if (p.tie) { A.t++; B.t++; } else { A.w++; B.l++; mu.push({s, week: p.week, w: p.a, l: p.b, m: p.a.points - p.b.points}); }
       });
     }));
     const who = (s, rid) => `<td>${esc(s.mgr[s.rown[rid]] || 'Unknown')}</td><td>${esc(s.rname[rid])}</td>`;
@@ -351,7 +353,13 @@ const views = {
     const teamHeads = ['Manager', 'Team', 'When', 'Points'];
     const mHeads = ['Winner', 'Score', 'Loser', 'Score', 'Margin', 'When'];
     const mRow = r => `<td>${esc(r.s.mgr[r.s.rown[r.w.roster_id]] || '?')}<br><small class="sub">${esc(r.s.rname[r.w.roster_id])}</small></td><td><b>${f(r.w.points)}</b></td><td>${esc(r.s.mgr[r.s.rown[r.l.roster_id]] || '?')}<br><small class="sub">${esc(r.s.rname[r.l.roster_id])}</small></td><td>${f(r.l.points)}</td><td><b>${f(r.m)}</b></td><td>${r.s.season} · Week ${r.week}</td>`;
-    RECS = `<h2>Records</h2><p class="sub">Regular-season games from every season of the league. The current season counts weeks that are finished.</p>
+    const pct = m => (m.w + m.t / 2) / ((m.w + m.l + m.t) || 1);
+    const all = Object.values(M).filter(m => m.w + m.l + m.t > 0).sort((a, b) => pct(b) - pct(a) || b.pf - a.pf);
+    const anyMed = S.some(x => x.lg.settings.league_average_match);
+    const standings = tbl('All-time standings', ['Manager', 'Seasons', 'Record', 'Win %', 'Points for', 'Points against', 'Titles'].concat(anyMed ? ['vs. median (not counted)'] : []),
+      all.map(m => `<td>${esc(m.n)}</td><td>${m.ss.size}</td><td><b>${m.w}-${m.l}${m.t ? '-' + m.t : ''}</b></td><td>${(pct(m) * 100).toFixed(1)}%</td><td>${Math.round(m.pf).toLocaleString()}</td><td>${Math.round(m.pa).toLocaleString()}</td><td>${m.ti || '–'}</td>${anyMed ? `<td class="mut">${m.mw}-${m.ml}</td>` : ''}`));
+    RECS = `<h2>Records</h2><p class="sub">Regular-season games from every season of the league. The current season counts weeks that are finished. Only real head-to-head matchups count toward records; wins and losses against the league median are left out.</p>
+      ${standings}
       ${tbl('Highest single-week score', teamHeads, top(tw, (a, b) => b.v - a.v).map(r => who(r.s, r.rid) + wk(r) + `<td><b>${f(r.v)}</b></td>`))}
       ${tbl('Lowest single-week score', teamHeads, top(tw, (a, b) => a.v - b.v).map(r => who(r.s, r.rid) + wk(r) + `<td><b>${f(r.v)}</b></td>`))}
       ${tbl('Most points in a season', ['Manager', 'Team', 'Season', 'Points'], top(seasons, (a, b) => b.v - a.v).map(r => who(r.s, r.rid) + `<td>${r.s.season}</td><td><b>${f(r.v)}</b></td>`))}
@@ -504,6 +512,24 @@ async function renderMu() {
   } catch (e) { body.innerHTML = `<p class="msg">Couldn't load this matchup (${esc(e.message)}).</p>`; }
 }
 
+
+/* ---------- head-to-head results per season (median results are kept separate) ---------- */
+const SP = {};
+function seasonPairs(s) {
+  return SP[s.id] ??= (async () => {
+    const st = s.lg.settings, last = (st.playoff_week_start || 15) - 1, done = s.lg.status === 'complete' ? last : Math.min(last, st.last_scored_leg || 0), out = [];
+    const ws = await Promise.all(Array.from({length: done}, (_, i) => get(`/league/${s.id}/matchups/${i + 1}`).catch(() => [])));
+    ws.forEach((m, i) => { const g = {}; m.forEach(x => (g[x.matchup_id] ??= []).push(x));
+      Object.values(g).forEach(pr => { if (pr.length === 2 && pr[0].points > 0 && pr[1].points > 0) { const [a, b] = pr[0].points >= pr[1].points ? pr : [pr[1], pr[0]]; out.push({week: i + 1, a, b, tie: a.points === b.points}); } }); });
+    return out;
+  })();
+}
+function h2hOf(prs) {
+  const H = {}, g = id => H[id] ??= {w: 0, l: 0, t: 0, pf: 0, pa: 0};
+  prs.forEach(p => { const A = g(p.a.roster_id), B = g(p.b.roster_id); A.pf += p.a.points; A.pa += p.b.points; B.pf += p.b.points; B.pa += p.a.points;
+    if (p.tie) { A.t++; B.t++; } else { A.w++; B.l++; } });
+  return H;
+}
 const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
 function acc(b){const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!o));b.nextElementSibling.hidden=o;}
 function weekSel(w, v) {
