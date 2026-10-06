@@ -122,6 +122,7 @@ const MANAGERS = {
   'andyrew':       {name: 'Andrew Dickherber'},
   'AJEW':          {name: 'Aj Prohaska'},
   'Csmoove_09':    {name: 'Chris White'},
+  'Fantasy1GOAT':  {name: 'Chris White'},   // second account; history is combined
   'BigJohnson50':  {name: 'Levi Johnson'},
   // retired managers
   'JakeSteenhoek':     {name: 'Jake SteenHoek'},
@@ -354,10 +355,10 @@ const views = {
     const mHeads = ['Winner', 'Score', 'Loser', 'Score', 'Margin', 'When'];
     const mRow = r => `<td>${esc(r.s.mgr[r.s.rown[r.w.roster_id]] || '?')}<br><small class="sub">${esc(r.s.rname[r.w.roster_id])}</small></td><td><b>${f(r.w.points)}</b></td><td>${esc(r.s.mgr[r.s.rown[r.l.roster_id]] || '?')}<br><small class="sub">${esc(r.s.rname[r.l.roster_id])}</small></td><td>${f(r.l.points)}</td><td><b>${f(r.m)}</b></td><td>${r.s.season} · Week ${r.week}</td>`;
     const pct = m => (m.w + m.t / 2) / ((m.w + m.l + m.t) || 1);
-    const all = Object.values(M).filter(m => m.w + m.l + m.t > 0).sort((a, b) => pct(b) - pct(a) || b.pf - a.pf);
-    const anyMed = S.some(x => x.lg.settings.league_average_match);
-    const standings = tbl('All-time standings', ['Manager', 'Seasons', 'Record', 'Win %', 'Points for', 'Points against', 'Titles'].concat(anyMed ? ['vs. median (not counted)'] : []),
-      all.map(m => `<td>${esc(m.n)}</td><td>${m.ss.size}</td><td><b>${m.w}-${m.l}${m.t ? '-' + m.t : ''}</b></td><td>${(pct(m) * 100).toFixed(1)}%</td><td>${Math.round(m.pf).toLocaleString()}</td><td>${Math.round(m.pa).toLocaleString()}</td><td>${m.ti || '–'}</td>${anyMed ? `<td class="mut">${m.mw}-${m.ml}</td>` : ''}`));
+    const cur = new Set(S[0].ro.map(r => S[0].mgr[r.owner_id]));
+    const all = Object.values(M).filter(m => cur.has(m.n) && m.w + m.l + m.t > 0).sort((a, b) => pct(b) - pct(a) || b.pf - a.pf);
+    const standings = tbl('All-time standings', ['Manager', 'Seasons', 'Record', 'Win %', 'Points for', 'Points against', 'Titles'],
+      all.map(m => `<td>${esc(m.n)}</td><td>${m.ss.size}</td><td><b>${m.w}-${m.l}${m.t ? '-' + m.t : ''}</b></td><td>${(pct(m) * 100).toFixed(1)}%</td><td>${Math.round(m.pf).toLocaleString()}</td><td>${Math.round(m.pa).toLocaleString()}</td><td>${m.ti || '–'}</td>`));
     RECS = `<h2>Records</h2><p class="sub">Regular-season games from every season of the league. The current season counts weeks that are finished. Only real head-to-head matchups count toward records; wins and losses against the league median are left out.</p>
       ${standings}
       ${tbl('Highest single-week score', teamHeads, top(tw, (a, b) => b.v - a.v).map(r => who(r.s, r.rid) + wk(r) + `<td><b>${f(r.v)}</b></td>`))}
