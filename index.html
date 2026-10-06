@@ -81,6 +81,20 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .pg{font-size:13px}.pg th,.pg td{text-align:center;padding:7px 4px}.pg td:first-child,.pg th:first-child{text-align:left;padding-left:8px}
 .mut{color:var(--muted)}
 .pcard em{display:block;font-style:normal;font-size:10.5px;color:var(--accent);margin-top:3px;font-weight:600}
+.mu.click{cursor:pointer}.mu.click:hover{border-color:var(--accent)}
+.mo{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px}
+.mp{position:relative;background:var(--bg);color:var(--fg);border-radius:14px;max-width:960px;width:100%;padding:22px 18px 26px;font-family:system-ui,sans-serif}
+.mx{position:absolute;top:8px;right:12px;background:none;border:0;color:var(--fg);font-size:28px;cursor:pointer;line-height:1}
+.mg{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.ms{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.mh{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:2px solid var(--accent);padding-bottom:8px}
+.mh .sub{margin:2px 0 0}.tot{font:700 1.9rem Georgia,serif;color:var(--accent)}
+.ms h4{margin:14px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.pr{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}
+.pr .sl{flex:none;width:34px;font-size:11px;font-weight:700;color:var(--muted)}
+.pr img{flex:none;width:30px;height:30px;border-radius:50%;object-fit:cover;background:var(--line)}
+.pr .pn{flex:1;min-width:0;line-height:1.2}.pr .pn small{display:block;color:var(--muted);font-size:11px}
+.pr .pt{flex:none;font-weight:700}
 </style>
 </head>
 <body>
@@ -105,7 +119,7 @@ const MANAGERS = {
   'Csmoove_09':    {name: 'Chris White'},
   'BigJohnson50':  {name: 'Levi Johnson'},
   // retired managers
-  'JakeSteenhoek':     {name: 'Jake Steenhoek'},
+  'JakeSteenhoek':     {name: 'Jake SteenHoek'},
   'TheOutlawJoeyAves': {name: 'Josh Avery'},
   'ResidentJT':        {name: 'JT Beers'},
   'evanotte':          {name: 'Evan Otte'},
@@ -231,11 +245,11 @@ const views = {
     const m = await get(`/league/${s.id}/matchups/${w}`), g = {};
     m.forEach(x => (g[x.matchup_id] ??= []).push(x));
     const rr = Object.fromEntries(s.ro.map(r => [r.roster_id, r]));
-    const cards = Object.values(g).map(p => `<div class="mu">${p.map(x => `<div class="row"><span>${esc(s.rname[x.roster_id])} <span class="rec">${rec(rr[x.roster_id])}</span></span><b>${(x.points || 0).toFixed(2)}</b></div>`).join('')}</div>`).join('');
+    const cards = Object.entries(g).map(([mid, p]) => `<div class="mu click" tabindex="0" role="button" onclick="openMu(${w},${mid})" onkeydown="if(event.key==='Enter')openMu(${w},${mid})">${p.map(x => `<div class="row"><span>${esc(s.rname[x.roster_id])} <span class="rec">${rec(rr[x.roster_id])}</span></span><b>${(x.points || 0).toFixed(2)}</b></div>`).join('')}</div>`).join('');
     setTimeout(oddsFill, 0);
     const st = [...s.ro].sort((a, b) => b.settings.wins - a.settings.wins || pts(b) - pts(a));
     const cut = s.lg.settings.playoff_teams || 6;
-    return `<h2>Matchups</h2>${weekSel(w, 'matchups')}<div class="mus">${cards || '<p class="msg">No matchups for this week yet.</p>'}</div>
+    return `<h2>Matchups</h2>${weekSel(w, 'matchups')}<p class="sub">Tap a matchup to see both rosters and live scoring.</p><div class="mus">${cards || '<p class="msg">No matchups for this week yet.</p>'}</div>
     <h2>Playoff odds</h2><div id="odds"><p class="msg">Running the numbers…</p></div>
     <h2>Standings</h2><p class="sub">Top ${cut} make the playoffs. Ties broken by points scored.</p><div class="scroll"><table><tr><th>#</th><th>Team</th><th>Manager</th><th>W-L</th><th>PF</th></tr>
     ${st.map((r, i) => `<tr${i < cut ? ' style="border-left:3px solid var(--accent)"' : ''}><td>${i + 1}</td><td>${esc(s.rname[r.roster_id])}</td><td>${esc(s.mgr[r.owner_id])}</td><td>${rec(r)}</td><td>${pts(r).toFixed(2)}</td></tr>`).join('')}</table></div>`;
@@ -420,6 +434,39 @@ async function projFill() {
     if ($('#proj')) $('#proj').innerHTML = PROJ;
   } catch (e) { if ($('#proj')) $('#proj').innerHTML = `<p class="msg">Couldn't work out the projected draft order (${esc(e.message)}).</p>`; }
 }
+
+/* ---------- matchup detail: both rosters + live scoring (refreshes every 30s while open) ---------- */
+let MU = null, MUT = null;
+function closeMu() { clearInterval(MUT); MUT = null; const m = document.getElementById('mo'); if (m) m.remove(); document.removeEventListener('keydown', muKey); }
+function muKey(e) { if (e.key === 'Escape') closeMu(); }
+function openMu(w, mid) {
+  closeMu(); MU = {w, mid};
+  const d = document.createElement('div'); d.id = 'mo'; d.className = 'mo';
+  d.innerHTML = '<div class="mp"><button class="mx" aria-label="Close" onclick="closeMu()">×</button><div id="mob"><p class="msg">Loading rosters…</p></div></div>';
+  d.addEventListener('click', e => { if (e.target === d) closeMu(); });
+  document.body.appendChild(d); document.addEventListener('keydown', muKey);
+  renderMu(); MUT = setInterval(renderMu, 30000);
+}
+async function renderMu() {
+  const body = document.getElementById('mob'); if (!body || !MU) return;
+  try {
+    const s = S[0], [m] = await Promise.all([get(`/league/${s.id}/matchups/${MU.w}`), PL ? 0 : get('/players/nfl').then(p => PL = p)]);
+    const pair = m.filter(x => x.matchup_id == MU.mid), slots = (s.lg.roster_positions || []).filter(p => p !== 'BN');
+    const nm = id => { const p = PL[id]; return p ? (p.full_name || ((p.first_name || '') + ' ' + (p.last_name || '')).trim()) : id; };
+    const row = (slot, id, pt) => !id || id === '0' ? `<div class="pr"><span class="sl">${esc(slot)}</span><span class="pn"><small>Empty</small></span><span class="pt">0.00</span></div>` :
+      `<div class="pr"><span class="sl">${esc(slot)}</span><img src="${photo(id)}" alt="" onerror="this.style.visibility='hidden'"><span class="pn"><b>${esc(nm(id))}</b><small>${esc(((PL[id] && PL[id].position) || '') + ' · ' + ((PL[id] && PL[id].team) || 'FA'))}</small></span><span class="pt">${pt == null ? '–' : Number(pt).toFixed(2)}</span></div>`;
+    const side = x => {
+      const r = s.ro.find(r => r.roster_id === x.roster_id) || {}, used = new Set(x.starters), out = new Set([...(r.taxi || []), ...(r.reserve || [])]);
+      const bench = (x.players || []).filter(id => !used.has(id) && !out.has(id)).sort((a, b) => (x.players_points[b] || 0) - (x.players_points[a] || 0));
+      return `<div class="ms"><div class="mh"><div><b>${esc(s.rname[x.roster_id])}</b><div class="sub">${esc(s.mgr[r.owner_id] || '')} · ${r.settings ? rec(r) : ''}</div></div><div class="tot">${(x.points || 0).toFixed(2)}</div></div>
+        <h4>Starters</h4>${x.starters.map((id, i) => row(slots[i] || 'FLEX', id, x.starters_points[i])).join('')}
+        <h4>Bench</h4>${bench.map(id => row('BN', id, x.players_points[id])).join('') || '<p class="sub">None</p>'}
+        ${(r.reserve || []).length ? `<h4>IR</h4>${r.reserve.map(id => row('IR', id, null)).join('')}` : ''}${(r.taxi || []).length ? `<h4>Taxi</h4>${r.taxi.map(id => row('TX', id, null)).join('')}` : ''}</div>`;
+    };
+    body.innerHTML = `<p class="sub">Week ${MU.w} · live scoring updates every 30 seconds while this is open · last updated ${new Date().toLocaleTimeString()}</p><div class="mg">${pair.map(side).join('')}</div>`;
+  } catch (e) { body.innerHTML = `<p class="msg">Couldn't load this matchup (${esc(e.message)}).</p>`; }
+}
+
 const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
 function acc(b){const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!o));b.nextElementSibling.hidden=o;}
 function weekSel(w, v) {
