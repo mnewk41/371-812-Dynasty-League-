@@ -95,6 +95,8 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .pr img{flex:none;width:30px;height:30px;border-radius:50%;object-fit:cover;background:var(--line)}
 .pr .pn{flex:1;min-width:0;line-height:1.2}.pr .pn small{display:block;color:var(--muted);font-size:11px}
 .pr .pt{flex:none;font-weight:700}
+.tl{width:22px;height:22px;object-fit:contain;vertical-align:middle;margin:0 5px 2px 0}
+.item .tl:not(:first-child){margin-left:4px}
 </style>
 </head>
 <body>
@@ -490,8 +492,9 @@ async function tick() {
     const d = await (await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')).json();
     const it = d.events.map(e => {
       const c = e.competitions[0].competitors, a = c.find(x => x.homeAway === 'away'), h = c.find(x => x.homeAway === 'home'), st = e.status.type;
-      const t = st.state === 'pre' ? `${a.team.abbreviation} @ ${h.team.abbreviation}` : `${a.team.abbreviation} ${a.score} @ ${h.team.abbreviation} ${h.score}`;
-      return `<span class="item${st.state === 'in' ? ' live' : ''}">${esc(t)} · ${esc(st.shortDetail)}</span>`;
+      const side = (x, sc) => `<img class="tl" src="${esc(x.team.logo || 'https://sleepercdn.com/images/team_logos/nfl/' + x.team.abbreviation.toLowerCase() + '.png')}" alt="" onerror="this.style.display='none'">${esc(x.team.abbreviation)}${sc ? ' ' + esc(x.score) : ''}`;
+      const pre = st.state === 'pre';
+      return `<span class="item${st.state === 'in' ? ' live' : ''}">${side(a, !pre)} @ ${side(h, !pre)} · ${esc(st.shortDetail)}</span>`;
     }).join('');
     $('#tk').innerHTML = `<div class="set">${it}</div><div class="set" aria-hidden="true">${it}</div>`;
   } catch (e) {}
