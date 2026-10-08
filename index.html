@@ -110,6 +110,15 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .tile b{display:block;font:700 1.35rem Georgia,serif;color:var(--accent)}.tile span{font-size:12px;color:var(--muted)}
 .pphoto{flex:none;width:150px;height:200px;object-fit:cover;border-radius:12px;border:1px solid var(--line)}
 @media(max-width:520px){.pphoto{width:120px;height:160px}}
+.abs{display:flex;gap:10px;flex-wrap:nowrap;margin:6px 0 8px}
+.ab{flex:1 1 0;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px}
+.ab h5{margin:0;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-family:system-ui,sans-serif}
+.abv{font:600 1rem Georgia,serif;margin:auto 0}
+.tlogo{width:72px;height:72px;object-fit:contain}
+.hs{position:relative;width:72px;height:72px;border-radius:50%;background:var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center;font:700 1.1rem system-ui,sans-serif;color:var(--muted)}
+.hs img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top}
+.abn{font:600 13px/1.2 system-ui,sans-serif}
+@media(max-width:520px){.tlogo,.hs{width:56px;height:56px}.abv{font-size:.85rem}.abn{font-size:11.5px}}
 </style>
 </head>
 <body>
@@ -555,6 +564,22 @@ function h2hOf(prs) {
   return H;
 }
 
+
+/* ---------- favorites: team logos and player headshots ---------- */
+const TEAMS = {'49ers':'sf','bears':'chi','bengals':'cin','bills':'buf','broncos':'den','browns':'cle','buccaneers':'tb','bucs':'tb','cardinals':'ari','chargers':'lac','chiefs':'kc','colts':'ind','commanders':'wsh','cowboys':'dal','dolphins':'mia','eagles':'phi','falcons':'atl','giants':'nyg','jaguars':'jax','jets':'nyj','lions':'det','packers':'gb','panthers':'car','patriots':'ne','raiders':'lv','rams':'lar','ravens':'bal','saints':'no','seahawks':'sea','steelers':'pit','texans':'hou','titans':'ten','vikings':'min'};
+function logoFallback(img, a) { if (!img.dataset.f) { img.dataset.f = 1; img.src = 'https://sleepercdn.com/images/team_logos/nfl/' + (a === 'wsh' ? 'was' : a) + '.png'; } else img.replaceWith(document.createTextNode(img.alt)); }
+async function setHeadshot(name) {
+  try {
+    if (!PL) PL = await get('/players/nfl');
+    const norm = x => String(x || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\b(jr|sr|ii|iii|iv)\b/g, '').replace(/\s+/g, ' ').trim(), t = norm(name);
+    const c = Object.values(PL).filter(p => p.position !== 'DEF' && norm(p.full_name || ((p.first_name || '') + ' ' + (p.last_name || ''))) === t)
+      .sort((a, b) => (b.active === true) - (a.active === true) || (b.team ? 1 : 0) - (a.team ? 1 : 0));
+    const p = c[0], el = document.getElementById('fpimg'); if (!p || !el) return;
+    const urls = [`https://sleepercdn.com/content/nfl/players/${p.player_id}.jpg`]; if (p.espn_id) urls.push(`https://a.espncdn.com/i/headshots/nfl/players/full/${p.espn_id}.png`);
+    let i = 0; const next = () => { if (i < urls.length) el.src = urls[i++]; else el.style.display = 'none'; };
+    el.onload = () => { el.style.display = 'block'; }; el.onerror = next; next();
+  } catch (e) {}
+}
 /* ---------- manager profiles (career resume, built from every season) ---------- */
 let MGR = null;
 async function buildMgr() {
@@ -592,7 +617,13 @@ async function openMgr(name) {
     const g = tot.w + tot.l + tot.t, pct = g ? (tot.w + tot.t / 2) / g * 100 : 0;
     const titles = M.rows.filter(x => x.champ).map(x => x.season).sort(), ru = M.rows.filter(x => x.ru).map(x => x.season).sort(), po = M.rows.filter(x => x.po).length;
     const ini = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase(), ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : n % 10 < 4 ? n % 10 : 0]);
-    const about = [info.from ? `<div><b>From:</b> ${esc(info.from)}</div>` : '', info.favTeam ? `<div><b>Favorite NFL team:</b> ${esc(info.favTeam)}</div>` : '', info.favPlayer ? `<div><b>Favorite player:</b> ${esc(info.favPlayer)}</div>` : '', info.bio ? `<p>${esc(info.bio)}</p>` : '', info.note ? `<p>${esc(info.note)}</p>` : ''].join('');
+    const ab = TEAMS[String(info.favTeam || '').toLowerCase()], pini = String(info.favPlayer || '').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    const blocks = [
+      info.from ? `<div class="ab"><h5>From</h5><div class="abv">${esc(info.from)}</div></div>` : '',
+      info.favTeam ? `<div class="ab"><h5>Favorite team</h5>${ab ? `<img class="tlogo" src="https://a.espncdn.com/i/teamlogos/nfl/500/${ab}.png" alt="${esc(info.favTeam)}" title="${esc(info.favTeam)}" onerror="logoFallback(this,'${ab}')">` : `<div class="abv">${esc(info.favTeam)}</div>`}</div>` : '',
+      info.favPlayer ? `<div class="ab"><h5>Favorite player</h5><div class="hs"><span>${esc(pini)}</span><img id="fpimg" alt="" style="display:none"></div><div class="abn">${esc(info.favPlayer)}</div></div>` : ''
+    ].join('');
+    const about = (blocks ? `<div class="abs">${blocks}</div>` : '') + (info.bio ? `<p>${esc(info.bio)}</p>` : '') + (info.note ? `<p>${esc(info.note)}</p>` : '');
     const tile = (k, v) => `<div class="tile"><b>${v}</b><span>${k}</span></div>`;
     body.innerHTML = `<div class="ph">${PHOTOS[name] ? `<img class="pphoto" src="${PHOTOS[name].f}" alt="${esc(name)}">` : ''}<div class="av2 big" style="${PHOTOS[name] ? 'display:none' : ''}">${esc(ini)}${u.avatar ? `<img src="https://sleepercdn.com/avatars/thumbs/${esc(u.avatar)}" alt="" onerror="this.remove()">` : ''}</div>
       <div><h2 style="margin:0">${esc(name)}${isC ? ' <span class="cm">Commissioner</span>' : ''}</h2><div class="sub">${esc(cur.rname[r.roster_id])} · Sleeper: ${esc(uname)}</div><div class="sub">In the league since ${M.rows[M.rows.length - 1].season}</div></div></div>
@@ -603,6 +634,7 @@ async function openMgr(name) {
       <h4 class="ph4">Season by season</h4><div class="scroll"><table><tr><th>Season</th><th>Team</th><th>Record</th><th>Points</th><th>Finish</th><th>Result</th></tr>
       ${M.rows.map(x => `<tr><td>${x.season}</td><td>${esc(x.team)}</td><td>${x.w}-${x.l}${x.t ? '-' + x.t : ''}</td><td>${Math.round(x.pf).toLocaleString()}</td><td>${x.done ? ord(x.rank) : 'in progress'}</td><td>${x.champ ? '🏆 Champion' : x.ru ? 'Runner-up' : x.po ? 'Made playoffs' : x.done ? '–' : ''}</td></tr>`).join('')}</table></div>
       <p class="sub" style="margin-top:10px">Records count regular-season head-to-head games only. Finish is the regular-season standing.</p>`;
+    if (info.favPlayer) setHeadshot(info.favPlayer);
   } catch (e) { body.innerHTML = `<p class="msg">Couldn't load this profile (${esc(e.message)}).</p>`; }
 }
 const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
