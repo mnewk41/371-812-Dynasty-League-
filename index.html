@@ -126,19 +126,19 @@ const PHOTOS = {"Tyler Combs": {"t": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQA
 /* ===== SETTINGS: change these ===== */
 const LEAGUE_ID = '1312128031032086528';   // your current Sleeper league
 // Sleeper username -> real name. Optional extras shown on a manager's profile, for example:
-//   'mnewk41': {name: 'Mason Newkirk', from: 'Columbus, IN', favTeam: 'Colts', bio: 'A short bio goes here.'}
+//   'mnewk41': {name: 'Mason Newkirk', from: 'Columbus, IN', favTeam: 'Colts', favPlayer: 'Peyton Manning', bio: 'A short bio goes here.'}
 const MANAGERS = {
-  'mnewk41':       {name: 'Mason Newkirk'},
-  'jnewk38':       {name: 'Jared Newkirk'},
-  'BrotherBear75': {name: 'Tyler Combs'},
-  'davidtucker12': {name: 'David Tucker'},
-  'TENNTITAN22':   {name: 'Tommy Reed'},
-  'WillSpeak96':   {name: 'Will Speaker'},
-  'andyrew':       {name: 'Andrew Dickherber'},
-  'AJEW':          {name: 'Aj Prohaska'},
-  'Csmoove_09':    {name: 'Chris White'},
+  'mnewk41':       {name: 'Mason Newkirk', from: 'Columbus, IN', favTeam: 'Colts', favPlayer: 'Antoine Bethea'},
+  'jnewk38':       {name: 'Jared Newkirk', from: 'Columbus, IN', favTeam: 'Colts', favPlayer: 'Marvin Harrison Jr.'},
+  'BrotherBear75': {name: 'Tyler Combs', from: 'Columbus, IN', favTeam: 'Bills', favPlayer: 'Josh Allen'},
+  'davidtucker12': {name: 'David Tucker', from: 'Nashville, IN', favTeam: 'Colts', favPlayer: 'Jonathan Taylor'},
+  'TENNTITAN22':   {name: 'Tommy Reed', from: 'Franklin, IN', favTeam: 'Titans', favPlayer: 'Taylor Lewan'},
+  'WillSpeak96':   {name: 'Will Speaker', from: 'Columbus, IN', favTeam: 'Colts'},
+  'andyrew':       {name: 'Andrew Dickherber', from: 'Columbus, IN', favTeam: 'Packers', favPlayer: 'Aaron Rodgers'},
+  'AJEW':          {name: 'Aj Prohaska', from: 'Columbus, IN', favTeam: 'Colts', favPlayer: 'Tom Brady'},
+  'Csmoove_09':    {name: 'Chris White', from: 'Indianapolis, IN', favTeam: 'Colts', favPlayer: 'Breece Hall'},
   'Fantasy1GOAT':  {name: 'Chris White'},   // second account; history is combined
-  'BigJohnson50':  {name: 'Levi Johnson'},
+  'BigJohnson50':  {name: 'Levi Johnson', from: 'Columbus, IN', favTeam: 'Colts', favPlayer: 'Jonathan Taylor'},
   // retired managers
   'JakeSteenhoek':     {name: 'Jake SteenHoek'},
   'TheOutlawJoeyAves': {name: 'Josh Avery'},
@@ -592,7 +592,7 @@ async function openMgr(name) {
     const g = tot.w + tot.l + tot.t, pct = g ? (tot.w + tot.t / 2) / g * 100 : 0;
     const titles = M.rows.filter(x => x.champ).map(x => x.season).sort(), ru = M.rows.filter(x => x.ru).map(x => x.season).sort(), po = M.rows.filter(x => x.po).length;
     const ini = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase(), ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : n % 10 < 4 ? n % 10 : 0]);
-    const about = [info.from ? `<div><b>From:</b> ${esc(info.from)}</div>` : '', info.favTeam ? `<div><b>Favorite NFL team:</b> ${esc(info.favTeam)}</div>` : '', info.bio ? `<p>${esc(info.bio)}</p>` : '', info.note ? `<p>${esc(info.note)}</p>` : ''].join('');
+    const about = [info.from ? `<div><b>From:</b> ${esc(info.from)}</div>` : '', info.favTeam ? `<div><b>Favorite NFL team:</b> ${esc(info.favTeam)}</div>` : '', info.favPlayer ? `<div><b>Favorite player:</b> ${esc(info.favPlayer)}</div>` : '', info.bio ? `<p>${esc(info.bio)}</p>` : '', info.note ? `<p>${esc(info.note)}</p>` : ''].join('');
     const tile = (k, v) => `<div class="tile"><b>${v}</b><span>${k}</span></div>`;
     body.innerHTML = `<div class="ph">${PHOTOS[name] ? `<img class="pphoto" src="${PHOTOS[name].f}" alt="${esc(name)}">` : ''}<div class="av2 big" style="${PHOTOS[name] ? 'display:none' : ''}">${esc(ini)}${u.avatar ? `<img src="https://sleepercdn.com/avatars/thumbs/${esc(u.avatar)}" alt="" onerror="this.remove()">` : ''}</div>
       <div><h2 style="margin:0">${esc(name)}${isC ? ' <span class="cm">Commissioner</span>' : ''}</h2><div class="sub">${esc(cur.rname[r.roster_id])} · Sleeper: ${esc(uname)}</div><div class="sub">In the league since ${M.rows[M.rows.length - 1].season}</div></div></div>
