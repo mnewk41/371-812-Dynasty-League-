@@ -101,6 +101,13 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .tl{width:22px;height:22px;object-fit:contain;vertical-align:middle;margin:0 5px 2px 0}
 .item .tl:not(:first-child){margin-left:4px}
 .cm{display:inline-block;font:700 10px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.05em;background:var(--accent);color:#fff;padding:2px 7px;border-radius:999px;vertical-align:middle;margin-left:4px}
+.mc.click{cursor:pointer}.mc.click:hover{border-color:var(--accent)}
+.ph{display:flex;gap:16px;align-items:center;margin-bottom:6px}
+.av2.big{width:76px;height:76px;font-size:26px}
+.ph4{margin:18px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:6px 0 10px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.tile b{display:block;font:700 1.35rem Georgia,serif;color:var(--accent)}.tile span{font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -112,7 +119,8 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 <script>
 /* ===== SETTINGS: change these ===== */
 const LEAGUE_ID = '1312128031032086528';   // your current Sleeper league
-// Sleeper username -> real name. Add  note: 'anything you want to share'  to any manager to show it on their card.
+// Sleeper username -> real name. Optional extras shown on a manager's profile, for example:
+//   'mnewk41': {name: 'Mason Newkirk', from: 'Columbus, IN', favTeam: 'Colts', bio: 'A short bio goes here.'}
 const MANAGERS = {
   'mnewk41':       {name: 'Mason Newkirk'},
   'jnewk38':       {name: 'Jared Newkirk'},
@@ -121,7 +129,7 @@ const MANAGERS = {
   'TENNTITAN22':   {name: 'Tommy Reed'},
   'WillSpeak96':   {name: 'Will Speaker'},
   'andyrew':       {name: 'Andrew Dickherber'},
-  'AJEW':          {name: 'AJ Prohaska'},
+  'AJEW':          {name: 'Aj Prohaska'},
   'Csmoove_09':    {name: 'Chris White'},
   'Fantasy1GOAT':  {name: 'Chris White'},   // second account; history is combined
   'BigJohnson50':  {name: 'Levi Johnson'},
@@ -237,9 +245,9 @@ async function init() {
     Object.entries(KNOWN_IDS).forEach(([uid, un]) => { mgr[uid] = realName(un); names[uid] = 'Team ' + realName(un); });
     ro.forEach(r => { if (!r.owner_id && FORMER_ROSTERS[id + ':' + r.roster_id]) r.owner_id = FORMER_ROSTERS[id + ':' + r.roster_id]; });
     ro.forEach(r => { rname[r.roster_id] = names[r.owner_id] || 'Roster ' + r.roster_id; rown[r.roster_id] = r.owner_id; });
-    let champ = null;
-    try { const wb = await get(`/league/${id}/winners_bracket`); const f = wb.find(m => m.p === 1); if (f && lg.status === 'complete') champ = f.w; } catch (e) {}
-    S.push({id, lg, us, ro, names, mgr, rname, rown, champ, season: lg.season});
+    let champ = null, ru = null, wb = [];
+    try { wb = await get(`/league/${id}/winners_bracket`); const f = wb.find(m => m.p === 1); if (f && lg.status === 'complete') { champ = f.w; ru = f.w === f.t1 ? f.t2 : f.t1; } } catch (e) {}
+    S.push({id, lg, us, ro, names, mgr, rname, rown, champ, ru, wb, season: lg.season});
     id = lg.previous_league_id;
   }
   $('#ttl').textContent = S[0].lg.name.trim();
@@ -290,7 +298,7 @@ const views = {
     const cl = cur.ro.map(r => {
       const u = find(r.owner_id), d = u.display_name, m = MANAGERS[d] || {}, k = key(r.owner_id), a = A[k], t = (T[k] || []).sort();
       const isC = COMMISSIONERS.includes(d) || !!u.is_owner, nm = m.name || d, ini = nm.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-      return {nm, c: isC, html: `<div class="mc"><div class="av2">${esc(ini)}${u.avatar ? `<img src="https://sleepercdn.com/avatars/thumbs/${esc(u.avatar)}" alt="" onerror="this.remove()">` : ''}</div>
+      return {nm, c: isC, html: `<div class="mc click" tabindex="0" role="button" data-m="${esc(nm)}" onclick="openMgr(this.dataset.m)" onkeydown="if(event.key==='Enter')openMgr(this.dataset.m)"><div class="av2">${esc(ini)}${u.avatar ? `<img src="https://sleepercdn.com/avatars/thumbs/${esc(u.avatar)}" alt="" onerror="this.remove()">` : ''}</div>
       <div><b>${esc(nm)}</b>${isC ? ' <span class="cm">Commissioner</span>' : ''}<div class="sub">${esc(cur.rname[r.roster_id])}</div><div class="sub">Sleeper: ${esc(d)}</div>
       <div class="sub">In the league since ${a.first} · ${a.n} season${a.n > 1 ? 's' : ''}</div><div class="sub">All-time record: ${a.w}-${a.l}</div>
       <div class="sub">Titles: ${t.length ? t.length + ' (' + t.join(', ') + ')' : 'none yet'}</div>${m.note ? `<p class="note">${esc(m.note)}</p>` : ''}</div></div>`};
@@ -304,7 +312,7 @@ const views = {
     const now = new Set(cur.ro.map(r => key(r.owner_id)));
     const past = Object.keys(A).filter(k => !now.has(k)).map(k => { const a = A[k], t = (T[k] || []).sort();
       return `<tr><td>${esc(find(k) ? realName(find(k).display_name) : k)}</td><td>${a.first === a.last ? a.first : a.first + '–' + a.last}</td><td>${R[k] ? R[k].w + '-' + R[k].l + (R[k].t ? '-' + R[k].t : '') : '–'}</td><td>${t.length ? t.join(', ') : '–'}</td></tr>`; }).join('');
-    return `<h2>Managers</h2><p class="sub">Everyone in the league, who they are, and how they've done.</p>${comm.length ? `<p><b>Commissioner${comm.length > 1 ? 's' : ''}:</b> ${esc(comm.join(', '))}</p>` : ''}<div class="mcs">${cards}</div>
+    return `<h2>Managers</h2><p class="sub">Everyone in the league, who they are, and how they've done. Tap a manager to see their full profile.</p>${comm.length ? `<p><b>Commissioner${comm.length > 1 ? 's' : ''}:</b> ${esc(comm.join(', '))}</p>` : ''}<div class="mcs">${cards}</div>
     ${past ? `<h2 style="margin-top:34px">Retired managers</h2><p class="sub">All-time record counts regular-season head-to-head games only.</p><div class="scroll"><table><tr><th>Manager</th><th>Seasons</th><th>All-time record</th><th>Titles</th></tr>${past}</table></div>` : ''}`;
   },
   async drafts(yr) {
@@ -539,6 +547,57 @@ function h2hOf(prs) {
   prs.forEach(p => { const A = g(p.a.roster_id), B = g(p.b.roster_id); A.pf += p.a.points; A.pa += p.b.points; B.pf += p.b.points; B.pa += p.a.points;
     if (p.tie) { A.t++; B.t++; } else { A.w++; B.l++; } });
   return H;
+}
+
+/* ---------- manager profiles (career resume, built from every season) ---------- */
+let MGR = null;
+async function buildMgr() {
+  if (MGR) return MGR;
+  const out = {};
+  for (const s of S) {
+    const prs = await seasonPairs(s), H = h2hOf(prs), nm = rid => s.mgr[s.rown[rid]] || 'Unknown';
+    const order = [...s.ro].sort((a, b) => b.settings.wins - a.settings.wins || pts(b) - pts(a)).map(r => r.roster_id), bk = new Set();
+    (s.wb || []).forEach(m => [m.t1, m.t2].forEach(t => { if (typeof t === 'number') bk.add(t); }));
+    s.ro.forEach(r => { const m = out[nm(r.roster_id)] ??= {n: nm(r.roster_id), rows: [], bw: null, bm: null}, h = H[r.roster_id] || {w: 0, l: 0, t: 0, pa: 0};
+      m.rows.push({season: s.season, team: s.rname[r.roster_id], w: h.w, l: h.l, t: h.t, pf: pts(r), pa: h.pa, rank: order.indexOf(r.roster_id) + 1, po: bk.has(r.roster_id), champ: s.champ === r.roster_id, ru: s.ru === r.roster_id, done: s.lg.status === 'complete'}); });
+    prs.forEach(p => {
+      const A = out[nm(p.a.roster_id)], B = out[nm(p.b.roster_id)];
+      [[A, p.a], [B, p.b]].forEach(([m, x]) => { if (!m.bw || x.points > m.bw.v) m.bw = {v: x.points, season: s.season, week: p.week}; });
+      if (!p.tie && (!A.bm || p.a.points - p.b.points > A.bm.v)) A.bm = {v: p.a.points - p.b.points, season: s.season, week: p.week, opp: nm(p.b.roster_id)};
+    });
+  }
+  return MGR = out;
+}
+function closeMgr() { const m = document.getElementById('mgm'); if (m) m.remove(); document.removeEventListener('keydown', mgrKey); }
+function mgrKey(e) { if (e.key === 'Escape') closeMgr(); }
+async function openMgr(name) {
+  closeMgr();
+  const d = document.createElement('div'); d.id = 'mgm'; d.className = 'mo';
+  d.innerHTML = '<div class="mp"><button class="mx" aria-label="Close" onclick="closeMgr()">×</button><div id="mgb"><p class="msg">Loading profile…</p></div></div>';
+  d.addEventListener('click', e => { if (e.target === d) closeMgr(); });
+  document.body.appendChild(d); document.addEventListener('keydown', mgrKey);
+  const body = document.getElementById('mgb');
+  try {
+    const M = (await buildMgr())[name], cur = S[0], r = cur.ro.find(r => cur.mgr[r.owner_id] === name);
+    if (!M || !r) { body.innerHTML = '<p class="msg">No profile found.</p>'; return; }
+    const u = cur.us.find(u => u.user_id === r.owner_id), uname = u.display_name, info = MANAGERS[uname] || {};
+    const isC = COMMISSIONERS.includes(uname) || !!u.is_owner, f = v => Number(v).toFixed(2);
+    const done = M.rows.filter(x => x.done), tot = M.rows.reduce((a, x) => ({w: a.w + x.w, l: a.l + x.l, t: a.t + x.t, pf: a.pf + x.pf, pa: a.pa + x.pa}), {w: 0, l: 0, t: 0, pf: 0, pa: 0});
+    const g = tot.w + tot.l + tot.t, pct = g ? (tot.w + tot.t / 2) / g * 100 : 0;
+    const titles = M.rows.filter(x => x.champ).map(x => x.season).sort(), ru = M.rows.filter(x => x.ru).map(x => x.season).sort(), po = M.rows.filter(x => x.po).length;
+    const ini = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase(), ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : n % 10 < 4 ? n % 10 : 0]);
+    const about = [info.from ? `<div><b>From:</b> ${esc(info.from)}</div>` : '', info.favTeam ? `<div><b>Favorite NFL team:</b> ${esc(info.favTeam)}</div>` : '', info.bio ? `<p>${esc(info.bio)}</p>` : '', info.note ? `<p>${esc(info.note)}</p>` : ''].join('');
+    const tile = (k, v) => `<div class="tile"><b>${v}</b><span>${k}</span></div>`;
+    body.innerHTML = `<div class="ph"><div class="av2 big">${esc(ini)}${u.avatar ? `<img src="https://sleepercdn.com/avatars/thumbs/${esc(u.avatar)}" alt="" onerror="this.remove()">` : ''}</div>
+      <div><h2 style="margin:0">${esc(name)}${isC ? ' <span class="cm">Commissioner</span>' : ''}</h2><div class="sub">${esc(cur.rname[r.roster_id])} · Sleeper: ${esc(uname)}</div><div class="sub">In the league since ${M.rows[M.rows.length - 1].season}</div></div></div>
+      <h4 class="ph4">About</h4>${about || '<p class="sub">Bio coming soon.</p>'}
+      <h4 class="ph4">Career</h4><div class="tiles">${tile('Seasons', M.rows.length)}${tile('Record', `${tot.w}-${tot.l}${tot.t ? '-' + tot.t : ''}`)}${tile('Win %', pct.toFixed(1) + '%')}${tile('Titles', titles.length)}${tile('Playoff trips', po)}${tile('Avg points', g ? f(tot.pf / g) : '–')}</div>
+      <p class="sub">${titles.length ? '🏆 Champion: ' + titles.join(', ') : 'No championships yet'}${ru.length ? ' · Runner-up: ' + ru.join(', ') : ''}</p>
+      <h4 class="ph4">Career highs</h4>${M.bw ? `<div>Highest score: <b>${f(M.bw.v)}</b> (${M.bw.season}, Week ${M.bw.week})</div>` : ''}${M.bm ? `<div>Biggest win: <b>${f(M.bm.v)}</b> points over ${esc(M.bm.opp)} (${M.bm.season}, Week ${M.bm.week})</div>` : ''}
+      <h4 class="ph4">Season by season</h4><div class="scroll"><table><tr><th>Season</th><th>Team</th><th>Record</th><th>Points</th><th>Finish</th><th>Result</th></tr>
+      ${M.rows.map(x => `<tr><td>${x.season}</td><td>${esc(x.team)}</td><td>${x.w}-${x.l}${x.t ? '-' + x.t : ''}</td><td>${Math.round(x.pf).toLocaleString()}</td><td>${x.done ? ord(x.rank) : 'in progress'}</td><td>${x.champ ? '🏆 Champion' : x.ru ? 'Runner-up' : x.po ? 'Made playoffs' : x.done ? '–' : ''}</td></tr>`).join('')}</table></div>
+      <p class="sub" style="margin-top:10px">Records count regular-season head-to-head games only. Finish is the regular-season standing.</p>`;
+  } catch (e) { body.innerHTML = `<p class="msg">Couldn't load this profile (${esc(e.message)}).</p>`; }
 }
 const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
 function acc(b){const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!o));b.nextElementSibling.hidden=o;}
