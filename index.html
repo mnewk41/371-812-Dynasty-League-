@@ -303,20 +303,11 @@ const views = {
   async trades(w) {
     const s = S[0]; w = w || s.lg.settings.leg || 1;
     const [tx] = await Promise.all([get(`/league/${s.id}/transactions/${w}`), PL ? 0 : get('/players/nfl').then(p => PL = p)]);
+    const HLX = await headlines();
     const pi = id => PL[id] || {}, nm = id => pi(id).full_name || ((pi(id).first_name || '') + ' ' + (pi(id).last_name || '')).trim() || id;
-    const last = id => pi(id).last_name || nm(id);
     const chip = (id, c) => `<span class="chip ${c}"><img src="${photo(id)}" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(nm(id))}</b><small>${esc((pi(id).position || '') + ' · ' + (pi(id).team || 'FA'))}</small></span></span>`;
     const user = rid => { const r = s.ro.find(r => r.roster_id === rid) || {}, u = s.us.find(u => u.user_id === r.owner_id) || {}, n = s.mgr[r.owner_id] || 'A manager'; return {n, h: u.display_name || 'manager', t: s.rname[rid] || 'A team', ph: PHOTOS[n]}; };
     const avatar = u => `<div class="tav">${u.ph ? `<img src="${u.ph.t}" alt="">` : esc(u.n.split(' ').map(x => x[0]).slice(0, 2).join(''))}</div>`;
-    const hash = x => [...String(x)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7), pick = (arr, seed) => arr[Math.abs(hash(seed)) % arr.length];
-    const addH = (t, id, tm) => { const l = last(id), p = nm(id), pos = pi(id).position, nfl = pi(id).team || 'free agency', by = {
-      QB: [`${tm} finds a quarterback of the future in ${l}, or at least of this Sunday`, `Arm talent alert: ${tm} adds ${nfl} QB ${l}`],
-      RB: [`${tm} adds ${l} to the backfield: carries expected, targets hoped for`, `RB ${l} joins ${tm}, workload concerns pending`],
-      WR: [`${tm} grabs ${nfl} WR ${l}: "he's been getting open, trust me"`, `Route runner ${l} lands with ${tm}`],
-      TE: [`${tm} gets a tight end! ${l} joins the roster`, `${l} could be ${tm}'s new red zone weapon`],
-      K: [`Kicker ${l} headed to ${tm}: every point counts`], DEF: [`${tm} adds the ${nfl} D/ST: "defense wins championships"`]}[pos] || [];
-      return pick([...by, `${tm} adds ${p}, league sources call it "a lateral move with upside"`, `BREAKING: ${tm} claims ${l}, and the waiver wire will never be the same`, `${l} to ${tm}: "I just wanted a fresh start"`, `Report: ${tm} bets big on ${nfl} ${pos || 'player'} ${l}`, `${tm} pounces on ${l} before anyone could blink`], t.transaction_id); };
-    const dropH = (t, id, tm) => pick([`${tm} drops ${nm(id)}: "it's not you, it's my bench spots"`, `${last(id)} hits the wire as ${tm} moves on`, `Cut day: ${tm} releases ${last(id)}, thanks for the memories`, `${tm} sends ${nm(id)} back to free agency`], t.transaction_id);
     const items = tx.filter(t => t.status === 'complete').sort((a, b) => b.created - a.created).map(t => {
       const when = new Date(t.created).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
       let u, hl, body, tag;
@@ -326,18 +317,18 @@ const views = {
         const list = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a[0] || 'nothing';
         const A = sd[0].u.t, B = (sd[1] || sd[0]).u.t, ra = list(asset(sd[0])), rb = list(asset(sd[1] || {pl: [], pk: [], fb: []}));
         u = (sd.find(x => s.ro.find(r => r.roster_id === x.rid && r.owner_id === t.creator)) || sd[0]).u;
-        hl = pick([`BLOCKBUSTER: ${A} lands ${ra}, ${B} gets ${rb}`, `Trade alert: ${A} and ${B} shake hands. ${A} receives ${ra}`, `Sources: ${B} sends ${ra} to ${A} in exchange for ${rb}`, `Done deal! ${A} adds ${ra} while ${B} walks away with ${rb}`], t.transaction_id);
+        hl = HLX[t.transaction_id] || `${A} and ${B} make a trade`;
         body = sd.map(x => `<div class="tsd"><small>${esc(x.u.t)} receives</small>${x.pl.map(id => chip(id, 'add')).join('')}${x.pk.map(k => `<span class="chip add"><span><b>${esc(k.season)} Round ${esc(k.round)} pick</b></span></span>`).join('')}${x.fb.map(b => `<span class="chip add"><span><b>$${esc(b.amount)} FAAB</b></span></span>`).join('')}</div>`).join('');
         tag = 'Trade';
       } else {
         const ad = Object.keys(t.adds || {}), dr = Object.keys(t.drops || {}), rid = t.roster_ids[0]; u = user(rid);
-        hl = ad.length ? addH(t, ad[0], u.t) : dr.length ? dropH(t, dr[0], u.t) : `${u.t} makes a roster move`;
+        hl = HLX[t.transaction_id] || `${u.t} makes a roster move`;
         body = `<div>${ad.map(id => chip(id, 'add')).join('')}${dr.map(id => chip(id, 'drop')).join('')}</div>`;
         tag = t.type === 'waiver' ? 'Waiver claim' + (t.settings && t.settings.waiver_bid != null ? ` · $${t.settings.waiver_bid} FAAB` : '') : 'Free agent';
       }
       return `<div class="tw2">${avatar(u)}<div class="tb"><div class="th"><b>${esc(u.n)}</b> <span>@${esc(u.h)} · ${esc(when)}</span></div><div class="thl">${esc(hl)}</div>${body}<div class="tt">${esc(tag)}</div></div></div>`;
     }).join('');
-    return `<h2>Trades and Waivers</h2>${weekSel(w, 'trades')}<div class="feed">${items || '<p class="msg" style="padding:16px">No moves this week.</p>'}</div><p class="sub" style="margin-top:10px">Headlines are made up for fun. The moves are real.</p>`;
+    return `<h2>Trades and Waivers</h2>${weekSel(w, 'trades')}<div class="feed">${items || '<p class="msg" style="padding:16px">No moves this week.</p>'}</div><p class="sub" style="margin-top:10px">Every headline is one of a kind and made up for fun. The moves are real.</p>`;
   },
   async managers() {
     const cur = S[0], T = {}, A = {};
@@ -673,6 +664,56 @@ async function openMgr(name) {
       <p class="sub" style="margin-top:10px">Records count regular-season head-to-head games only. Finish is the regular-season standing.</p>`;
     if (info.favPlayer) setHeadshot(info.favPlayer);
   } catch (e) { body.innerHTML = `<p class="msg">Couldn't load this profile (${esc(e.message)}).</p>`; }
+}
+
+/* ---------- one-of-a-kind headlines: phrases are dealt from shuffled decks, and no full headline is ever repeated ---------- */
+let HLM = {}, HLK = '';
+const HL_OPEN = ['BREAKING:', 'JUST IN:', 'DEVELOPING:', 'ALERT:', 'REPORT:', 'SOURCES:', 'EXCLUSIVE:', 'UPDATE:', 'FLASH:', 'NEWS:', '', '', ''];
+const HL_ROLE = {QB: ['quarterback', 'signal-caller', 'passer'], RB: ['running back', 'ball carrier', 'backfield piece'], WR: ['wide receiver', 'pass catcher', 'route runner'], TE: ['tight end', 'red zone target', 'big target'], K: ['kicker', 'leg'], DEF: ['defense', 'D/ST unit']};
+const HL_ADDV = ['adds', 'claims', 'snags', 'grabs', 'scoops up', 'picks up', 'lands', 'signs', 'reels in', 'takes a flier on', 'bets on', 'stashes', 'secures', 'nabs', 'welcomes', 'brings in', 'pounces on', 'swoops in for', 'hops on', 'locks up', 'plucks', 'rescues', 'adopts', 'rolls the dice on', 'targets', 'adds depth with', 'makes room for', 'goes all in on', 'springs for', 'gambles on'];
+const HL_LAND = ['heads to', 'lands with', 'joins', 'signs on with', 'ends up with', 'is now in the hands of', 'finds a home with', 'gets scooped up by', 'takes his talents to', 'is the newest member of'];
+const HL_DROPV = ['drops', 'cuts', 'releases', 'waives', 'parts ways with', 'sends packing', 'kicks to the curb', 'lets go of', 'cuts ties with', 'moves on from', 'bids farewell to', 'shows the door to', 'sets free', 'clears out', 'says goodbye to', 'gives up on', 'trims', 'sends back to free agency', 'wishes well to', 'removes'];
+const HL_OBJ = ['{p}', '{nfl} {role} {l}', '{role} {p}', '{l}', '{p} ({pos}, {nfl})'], HL_OBJ2 = ['{p}', '{l}', '{nfl} {role} {l}'];
+const HL_ADDH = [].concat(...HL_ADDV.map(v => HL_OBJ.map(o => `{t} ${v} ${o}`)), ...HL_LAND.map(v => HL_OBJ2.map(o => `${o} ${v} {t}`)));
+const HL_DROPH = [].concat(...HL_DROPV.map(v => HL_OBJ.slice(0, 4).map(o => `{t} ${v} ${o}`)));
+const HL_ADDT = [' — the group chat has questions', ', according to people familiar with the matter', ' in a surprise to absolutely no one', ', and the waiver wire will never be the same', " — league office is 'monitoring the situation'", ', as the rest of the league scrambles', ' after weeks of quiet scouting', ", citing 'vibes' and little else", ' — bench spots are a state of mind', ', and {nfl} fans take notice', ', a move that is either genius or chaos', ', because depth is a love language', " — rival managers reportedly 'furious'", ', just in time for the weekend', ' while the commissioner pretends not to notice', ', leaving the rest of the wire to fight over scraps', " — analysts are 'cautiously intrigued'", ", in what sources are calling 'a calculated risk'", ' and somebody just lost a bidding war', ', proving once again that patience pays', ' — expect a victory lap in the group chat', ', with {l} now the talk of the league', ", and {t} isn't done shopping", ' — the trade block is nervous', ' as fantasy football remains undefeated at being chaotic', ', sources say with a straight face', ' after a late-night scroll through the free agent list', ', and the ripple effects are already being felt', ' — Sunday just got more interesting', ', in a move nobody saw coming but everybody respects', ' — {l} says nothing, but {t} says plenty', ', a decision that will be debated for at least a day', ' and the wire goes quiet', ' — somewhere, a commissioner sighs', ", and the league's group text lights up", ', ending a long and dramatic waiver standoff', ', per a source with a suspicious amount of confidence', ' — this is not a drill', ', the kind of move champions are rumored to make', ', and {nfl} depth chart watchers are paying attention', ' — expect highlights', ', a bold play for a bench slot', ' — roster spot secured, dignity pending', ', the quietest blockbuster of the week', ' after reportedly refreshing the page for 20 minutes', ", leaving {l} on someone's must-start list", " — the numbers don't lie, but they do exaggerate", ', and the fallout is expected by Sunday', ' with the confidence of a manager who read one article', ', per a very official-sounding source', ' — a depth move with main-character energy', ', and the league will be watching closely', ' in a move that makes sense if you squint', ', the first domino in what may be a busy week', ' — receipts have been screenshotted', ', with all the subtlety of a marching band', ' — thoughts and prayers to the rest of the wire', ', just like they drew it up (in the notes app)'];
+const HL_DROPT = [" — it's not you, it's the bench spots", ', thanks for the memories', ' — the wire welcomes a new arrival', ' after a long and honest conversation with the roster', ', clearing space for bigger dreams', ', no hard feelings, mostly', ' — a tough but necessary decision', ', as another chapter closes', ', and a roster spot opens for the next big thing', ' — the group chat sends condolences', ", citing 'roster flexibility'", ', per sources close to the situation', ' — gone but not forgotten (until Sunday)', ', sparing everyone an awkward bench conversation', ' in a cold but efficient move', ', effective immediately, according to the notes app', ' — somebody on the wire just got lucky', ', ending a brief and eventful tenure', ', making room for a fresh start', ', leaving a {nfl}-sized hole in the bench', ' — the circle of fantasy life continues', ', as {t} reshapes the bench', ' and the lineup gets a little leaner', ', with a firm handshake and a clean break', ' — an emotional day for the roster, a happy one for the wire', ', without so much as a farewell tweet', ', as the {nfl} faithful shrug', ' — this is just business', ', a move that shocked at least one person', ' — the bench thanks you for your service', ', and the bench is finally breathing', ', as spring cleaning comes early', ', a classic case of addition by subtraction', ' — {t} has seen enough', ', opening a door for a surprise suitor', ' — the rest of the league is circling', " after one too many 'maybe next week' lineups", ', a move that was a long time coming', ' — roster moves wait for no one', ', closing the book on a short chapter', " and just like that, it's done"];
+const HL_TOP = ['BLOCKBUSTER:', 'TRADE ALERT:', 'DONE DEAL:', 'SHOCKER:', 'HANDSHAKE:', 'BREAKING:', 'JUST IN:', ''];
+const HL_TVA = ['lands', 'acquires', 'receives', 'adds', 'snags', 'secures', 'picks up', 'gets'], HL_TCN = [', while', ' as', ', and', '; meanwhile,', ' in a deal where'], HL_TVB = ['gets', 'walks away with', 'takes home', 'receives', 'lands', 'is left with', 'collects', 'adds'];
+const HL_TT = [', and the league office is reviewing the paperwork', ' — the veto button remains untouched', ', a deal months in the making (or ten minutes, who knows)', ' — the group chat is on fire', ', with both sides claiming victory', " and the commissioner is 'taking it all in'", ', per sources with excellent timing', ' — pens down, ink dry', ', in a move that will be debated for weeks', ' — both managers declined to comment (in the group chat they commented a lot)', ', reshaping the balance of power in the league', ' — dynasty is a long game', ', leaving fans of both teams stunned', ' — rumors of a third team were exaggerated', ', sealed with a handshake and a thumbs-up emoji', ' — winners and losers TBD', ', a trade nobody saw coming and everybody has opinions on', ', ending a long and awkward negotiation', ' — somewhere, a spreadsheet is smiling', ', as the trade market heats up', ' — the rest of the league is taking notes', ', and one manager is going to be insufferable', ' — time will tell who won', ", in what insiders call 'a very fantasy football trade'", ', proving everything has a price', ' — a deal for the history books (or at least the group chat)', ', and the trade block gets a little emptier', " after what we're told was a 'frank exchange of offers'", ' — {A} and {B} both say they feel great about it', ', a swap that looks different depending on who you ask', ' — sources confirm: this actually happened', ', with picks and players changing hands in a flurry', ' — the commissioner approves, spiritually', ', as the league braces for the aftershocks', ' — handshake emoji deployed', ', moves that could define the season', " — everyone's a genius until Sunday", ', quietly altering the title odds', ", in the quiet before the next big move", ', as dynasty rolls on'];
+async function headlines() {
+  const s = S[0], leg = s.lg.settings.leg || 0, all = [];
+  const ws = await Promise.all(Array.from({length: leg}, (_, i) => get(`/league/${s.id}/transactions/${i + 1}`).catch(() => [])));
+  ws.forEach(w => w.forEach(t => { if (t.status === 'complete') all.push(t); }));
+  all.sort((a, b) => a.created - b.created || String(a.transaction_id).localeCompare(String(b.transaction_id)));
+  const key = all.map(t => t.transaction_id).join(',');
+  if (key === HLK) return HLM;
+  let seed = [...String(s.id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 17);
+  const rnd = () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const D = {}, deal = (n, arr) => { let d = D[n]; if (!d || !d.length) { d = D[n] = [...arr]; for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; } } return d.pop(); };
+  const fill = (str, c) => str.replace(/\{(\w+)\}/g, (_, k) => c[k] ?? ''), pi = id => PL[id] || {};
+  const nm = id => pi(id).full_name || ((pi(id).first_name || '') + ' ' + (pi(id).last_name || '')).trim() || id, tn = rid => s.rname[rid] || 'A team';
+  const out = {}, used = new Set();
+  all.forEach((t, n) => {
+    let hl = '';
+    for (let tries = 0; tries < 40 && (!hl || used.has(hl)); tries++) {
+      if (t.type === 'trade') {
+        const ids = t.roster_ids, side = rid => [...Object.entries(t.adds || {}).filter(([, r]) => r === rid).map(([p]) => nm(p)), ...(t.draft_picks || []).filter(x => x.owner_id === rid).map(k => `a ${k.season} round ${k.round} pick`), ...(t.waiver_budget || []).filter(x => x.receiver === rid).map(b => `$${b.amount} FAAB`)];
+        const list = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a[0] || 'nothing', c = {A: tn(ids[0]), B: tn(ids[1] || ids[0])};
+        const op = deal('to', HL_TOP);
+        hl = [op, `${c.A} ${deal('tva', HL_TVA)} ${list(side(ids[0]))}${deal('tcn', HL_TCN)} ${c.B} ${deal('tvb', HL_TVB)} ${list(side(ids[1] || ''))}${fill(deal('tt', HL_TT), c)}`].filter(Boolean).join(' ');
+      } else {
+        const ad = Object.keys(t.adds || {}), dr = Object.keys(t.drops || {}), isAdd = ad.length > 0, id = isAdd ? ad[0] : dr[0];
+        if (!id) { hl = `${tn(t.roster_ids[0])} makes a roster move (#${n + 1})`; break; }
+        const pos = pi(id).position, roles = HL_ROLE[pos] || ['player'];
+        const c = {t: tn(t.roster_ids[0]), p: nm(id), l: pi(id).last_name || nm(id), nfl: pi(id).team || 'free agent', pos: pos || 'player', role: roles[Math.floor(rnd() * roles.length)]};
+        hl = [deal(isAdd ? 'ao' : 'do', HL_OPEN), fill(deal(isAdd ? 'ah' : 'dh', isAdd ? HL_ADDH : HL_DROPH), c) + fill(deal(isAdd ? 'at' : 'dt', isAdd ? HL_ADDT : HL_DROPT), c)].filter(Boolean).join(' ');
+      }
+    }
+    if (used.has(hl)) hl += ` (move #${n + 1})`;
+    used.add(hl); out[t.transaction_id] = hl;
+  });
+  HLK = key; return HLM = out;
 }
 const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
 function acc(b){const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!o));b.nextElementSibling.hidden=o;}
