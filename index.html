@@ -119,6 +119,18 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .hs img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top}
 .abn{font:600 13px/1.2 system-ui,sans-serif}
 @media(max-width:520px){.tlogo,.hs{width:56px;height:56px}.abv{font-size:.85rem}.abn{font-size:11.5px}}
+.feed{max-width:640px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card);font-family:system-ui,sans-serif}
+.tw2{display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}.tw2:last-child{border-bottom:0}
+.tav{flex:none;width:44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;overflow:hidden}
+.tav img{width:100%;height:100%;object-fit:cover}
+.tb{flex:1;min-width:0}.th{font-size:14px}.th span{color:var(--muted);font-size:13px}
+.thl{font-weight:700;font-size:16px;line-height:1.3;margin:4px 0 8px}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:5px 10px 5px 6px;margin:3px 6px 3px 0;font-size:13px}
+.chip img{width:30px;height:30px;border-radius:50%;object-fit:cover;background:var(--line)}
+.chip b{display:block;font-size:13px}.chip small{color:var(--muted);font-size:11px}
+.chip.add{border-color:var(--accent)}.chip.drop{border-color:#c0392b;opacity:.85}
+.tsd{margin-bottom:6px}.tsd>small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.tt{margin-top:6px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 </style>
 </head>
 <body>
@@ -291,16 +303,41 @@ const views = {
   async trades(w) {
     const s = S[0]; w = w || s.lg.settings.leg || 1;
     const [tx] = await Promise.all([get(`/league/${s.id}/transactions/${w}`), PL ? 0 : get('/players/nfl').then(p => PL = p)]);
-    const nm = id => PL[id] ? (PL[id].full_name || PL[id].last_name || PL[id].player_id) : id;
-    const pl = (id, c, sign) => `<div class="${c}"><img src="${photo(id)}" alt="" onerror="this.style.visibility='hidden'">${sign} ${esc(nm(id))}</div>`;
+    const pi = id => PL[id] || {}, nm = id => pi(id).full_name || ((pi(id).first_name || '') + ' ' + (pi(id).last_name || '')).trim() || id;
+    const last = id => pi(id).last_name || nm(id);
+    const chip = (id, c) => `<span class="chip ${c}"><img src="${photo(id)}" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(nm(id))}</b><small>${esc((pi(id).position || '') + ' · ' + (pi(id).team || 'FA'))}</small></span></span>`;
+    const user = rid => { const r = s.ro.find(r => r.roster_id === rid) || {}, u = s.us.find(u => u.user_id === r.owner_id) || {}, n = s.mgr[r.owner_id] || 'A manager'; return {n, h: u.display_name || 'manager', t: s.rname[rid] || 'A team', ph: PHOTOS[n]}; };
+    const avatar = u => `<div class="tav">${u.ph ? `<img src="${u.ph.t}" alt="">` : esc(u.n.split(' ').map(x => x[0]).slice(0, 2).join(''))}</div>`;
+    const hash = x => [...String(x)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7), pick = (arr, seed) => arr[Math.abs(hash(seed)) % arr.length];
+    const addH = (t, id, tm) => { const l = last(id), p = nm(id), pos = pi(id).position, nfl = pi(id).team || 'free agency', by = {
+      QB: [`${tm} finds a quarterback of the future in ${l}, or at least of this Sunday`, `Arm talent alert: ${tm} adds ${nfl} QB ${l}`],
+      RB: [`${tm} adds ${l} to the backfield: carries expected, targets hoped for`, `RB ${l} joins ${tm}, workload concerns pending`],
+      WR: [`${tm} grabs ${nfl} WR ${l}: "he's been getting open, trust me"`, `Route runner ${l} lands with ${tm}`],
+      TE: [`${tm} gets a tight end! ${l} joins the roster`, `${l} could be ${tm}'s new red zone weapon`],
+      K: [`Kicker ${l} headed to ${tm}: every point counts`], DEF: [`${tm} adds the ${nfl} D/ST: "defense wins championships"`]}[pos] || [];
+      return pick([...by, `${tm} adds ${p}, league sources call it "a lateral move with upside"`, `BREAKING: ${tm} claims ${l}, and the waiver wire will never be the same`, `${l} to ${tm}: "I just wanted a fresh start"`, `Report: ${tm} bets big on ${nfl} ${pos || 'player'} ${l}`, `${tm} pounces on ${l} before anyone could blink`], t.transaction_id); };
+    const dropH = (t, id, tm) => pick([`${tm} drops ${nm(id)}: "it's not you, it's my bench spots"`, `${last(id)} hits the wire as ${tm} moves on`, `Cut day: ${tm} releases ${last(id)}, thanks for the memories`, `${tm} sends ${nm(id)} back to free agency`], t.transaction_id);
     const items = tx.filter(t => t.status === 'complete').sort((a, b) => b.created - a.created).map(t => {
-      const teams = t.roster_ids.map(r => esc(s.rname[r])).join(' ↔ ');
-      const adds = Object.entries(t.adds || {}).map(([p, r]) => pl(p, 'add', '+') ).join('');
-      const drops = Object.entries(t.drops || {}).map(([p]) => pl(p, 'drop', '−')).join('');
-      const kind = t.type === 'trade' ? 'Trade' : t.type === 'waiver' ? 'Waiver claim' : 'Free agent';
-      return `<div class="tx"><div class="sub"><b>${kind}</b> · ${teams} · ${new Date(t.created).toLocaleDateString()}</div>${adds}${drops}</div>`;
-    }).join('<div style="height:10px"></div>');
-    return `<h2>Trades and Waivers</h2>${weekSel(w, 'trades')}${items || '<p class="msg">No moves this week.</p>'}`;
+      const when = new Date(t.created).toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
+      let u, hl, body, tag;
+      if (t.type === 'trade') {
+        const ids = t.roster_ids, side = rid => ({rid, u: user(rid), pl: Object.entries(t.adds || {}).filter(([, r]) => r === rid).map(([p]) => p), pk: (t.draft_picks || []).filter(x => x.owner_id === rid), fb: (t.waiver_budget || []).filter(x => x.receiver === rid)});
+        const sd = ids.map(side), asset = x => [...x.pl.map(nm), ...x.pk.map(k => `a ${k.season} round ${k.round} pick`), ...x.fb.map(b => `$${b.amount} FAAB`)];
+        const list = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a[0] || 'nothing';
+        const A = sd[0].u.t, B = (sd[1] || sd[0]).u.t, ra = list(asset(sd[0])), rb = list(asset(sd[1] || {pl: [], pk: [], fb: []}));
+        u = (sd.find(x => s.ro.find(r => r.roster_id === x.rid && r.owner_id === t.creator)) || sd[0]).u;
+        hl = pick([`BLOCKBUSTER: ${A} lands ${ra}, ${B} gets ${rb}`, `Trade alert: ${A} and ${B} shake hands. ${A} receives ${ra}`, `Sources: ${B} sends ${ra} to ${A} in exchange for ${rb}`, `Done deal! ${A} adds ${ra} while ${B} walks away with ${rb}`], t.transaction_id);
+        body = sd.map(x => `<div class="tsd"><small>${esc(x.u.t)} receives</small>${x.pl.map(id => chip(id, 'add')).join('')}${x.pk.map(k => `<span class="chip add"><span><b>${esc(k.season)} Round ${esc(k.round)} pick</b></span></span>`).join('')}${x.fb.map(b => `<span class="chip add"><span><b>$${esc(b.amount)} FAAB</b></span></span>`).join('')}</div>`).join('');
+        tag = 'Trade';
+      } else {
+        const ad = Object.keys(t.adds || {}), dr = Object.keys(t.drops || {}), rid = t.roster_ids[0]; u = user(rid);
+        hl = ad.length ? addH(t, ad[0], u.t) : dr.length ? dropH(t, dr[0], u.t) : `${u.t} makes a roster move`;
+        body = `<div>${ad.map(id => chip(id, 'add')).join('')}${dr.map(id => chip(id, 'drop')).join('')}</div>`;
+        tag = t.type === 'waiver' ? 'Waiver claim' + (t.settings && t.settings.waiver_bid != null ? ` · $${t.settings.waiver_bid} FAAB` : '') : 'Free agent';
+      }
+      return `<div class="tw2">${avatar(u)}<div class="tb"><div class="th"><b>${esc(u.n)}</b> <span>@${esc(u.h)} · ${esc(when)}</span></div><div class="thl">${esc(hl)}</div>${body}<div class="tt">${esc(tag)}</div></div></div>`;
+    }).join('');
+    return `<h2>Trades and Waivers</h2>${weekSel(w, 'trades')}<div class="feed">${items || '<p class="msg" style="padding:16px">No moves this week.</p>'}</div><p class="sub" style="margin-top:10px">Headlines are made up for fun. The moves are real.</p>`;
   },
   async managers() {
     const cur = S[0], T = {}, A = {};
