@@ -138,6 +138,20 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .tphs .tph+.tph{margin-left:-22px}
 .trs{margin:2px 0 8px;font-size:14px;color:var(--muted);font-style:italic}
 @media(max-width:520px){.tph{width:64px;height:64px}}
+.podium{display:flex;align-items:flex-end;justify-content:center;gap:10px;margin:18px 0 22px;font-family:system-ui,sans-serif}
+.pod{flex:1;max-width:230px;text-align:center}
+.pod .medal{font-size:1.8rem;line-height:1}
+.pod b{display:block;font:700 1rem Georgia,serif;margin-top:6px}
+.pod .sub{margin:2px 0;font-size:12px}
+.pface{width:84px;height:104px;object-fit:cover;object-position:center top;border-radius:12px;margin:6px auto 0;display:block;border:2px solid var(--line)}
+.pface.big{width:96px;height:120px;margin:0}
+.pface.ini{display:flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;font:700 1.5rem system-ui,sans-serif}
+.pod .step{margin-top:10px;border-radius:10px 10px 0 0;color:#fff;font:700 1.3rem Georgia,serif;display:flex;align-items:center;justify-content:center}
+.pod.p1 .step{height:96px;background:#d4af37}.pod.p2 .step{height:70px;background:#9aa4ad}.pod.p3 .step{height:52px;background:#b87333}
+.tbowl{display:flex;gap:16px;align-items:center;background:var(--card);border:2px dashed #b08d57;border-radius:14px;padding:14px 16px;font-family:system-ui,sans-serif}
+.tbt{font:700 12px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;color:#b08d57;margin-bottom:2px}
+.tbowl b{font:700 1.15rem Georgia,serif}.roast{margin:8px 0 0;font-style:italic;font-size:14px}
+@media(max-width:520px){.pface{width:64px;height:80px}.pod .medal{font-size:1.4rem}.pod b{font-size:.85rem}.tbowl{flex-direction:column;text-align:center}}
 </style>
 </head>
 <body>
@@ -281,7 +295,8 @@ async function init() {
     ro.forEach(r => { rname[r.roster_id] = names[r.owner_id] || 'Roster ' + r.roster_id; rown[r.roster_id] = r.owner_id; });
     let champ = null, ru = null, wb = [];
     try { wb = await get(`/league/${id}/winners_bracket`); const f = wb.find(m => m.p === 1); if (f && lg.status === 'complete') { champ = f.w; ru = f.w === f.t1 ? f.t2 : f.t1; } } catch (e) {}
-    S.push({id, lg, us, ro, names, mgr, rname, rown, champ, ru, wb, season: lg.season});
+    let lb = []; try { lb = await get(`/league/${id}/losers_bracket`); } catch (e) {}
+    S.push({id, lg, us, ro, names, mgr, rname, rown, champ, ru, wb, lb, season: lg.season});
     id = lg.previous_league_id;
   }
   $('#ttl').textContent = S[0].lg.name.trim();
@@ -392,9 +407,31 @@ const views = {
     }
     return `<h2>Drafts</h2>${bubs}${out || '<p class="msg">No draft results recorded for this season.</p>'}`;
   },
-  async trophy() {
-    const b = S.filter(x => x.champ).map(x => `<div class="banner"><span>★</span><span class="yr">${x.season}</span><b>${esc(x.rname[x.champ])}</b><small>${esc(x.mgr[x.rown[x.champ]])}</small></div>`).join('');
-    return `<h2>Trophy Room</h2><div class="rafters">${b || '<p class="msg">No champions yet.</p>'}</div>`;
+  async trophy(yr) {
+    const done = S.filter(x => x.champ), ban = done.map(x => `<div class="banner"><span>★</span><span class="yr">${x.season}</span><b>${esc(x.rname[x.champ])}</b><small>${esc(x.mgr[x.rown[x.champ]])}</small></div>`).join('');
+    if (!done.length) return `<h2>Trophy Room</h2><p class="msg">No champions yet.</p>`;
+    const sn = done.find(x => x.season === yr) || done[0], who = (x, rid) => x.mgr[x.rown[rid]] || 'Unknown';
+    const fin = x => { const w = x.wb || [], l = x.lb || [], m1 = w.find(m => m.p === 1), m3 = w.find(m => m.p === 3), f = {};
+      if (m1) { f.first = m1.w; f.second = m1.l; } if (m3) f.third = m3.w;
+      const mp = Math.max(0, ...l.map(m => m.p || 0)), lm = mp ? l.find(m => m.p === mp) : null; if (lm) f.last = lm.l; return f; };
+    const f = fin(sn), order = [...sn.ro].sort((a, b) => b.settings.wins - a.settings.wins || pts(b) - pts(a)).map(r => r.roster_id);
+    const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : n % 10 < 4 ? n % 10 : 0]);
+    const face = (n, big) => { const ph = PHOTOS[n]; return ph ? `<img class="pface${big ? ' big' : ''}" src="${ph.f}" alt="${esc(n)}">` : `<div class="pface${big ? ' big' : ''} ini">${esc(n.split(' ').map(w => w[0]).slice(0, 2).join(''))}</div>`; };
+    const pod = (rid, label, cls, medal) => { if (!rid) return `<div class="pod ${cls}"></div>`; const n = who(sn, rid), r = sn.ro.find(r => r.roster_id === rid);
+      return `<div class="pod ${cls}"><div class="medal">${medal}</div>${face(n)}<b>${esc(n)}</b><div class="sub">${esc(sn.rname[rid])}</div><div class="sub">Regular season: ${ord(order.indexOf(rid) + 1)}${r ? ' · ' + pts(r).toFixed(1) + ' PF' : ''}</div><div class="step">${label}</div></div>`; };
+    const roasts = ["{n} didn't just fall short. {n} fell all the way to the bottom of the lower bracket.", 'Somewhere, {t} is still checking the waiver wire for answers.', 'The porcelain throne has a new owner: {n}.', '{t} flushed the season in style.', 'Down but not out: {n} will be back with a vengeance. Probably.', '{t} gave the lower bracket everything, and the lower bracket gave back nothing.', "It's a dubious honor, but somebody has to take it, and this year it's {n}.", '{n} wins the Toilet Bowl, the only trophy nobody wants on the shelf.', "{t}'s season went down the drain, but the legend lives on.", '{n} reached rock bottom and decided to stay for the whole bracket.', "A moment of silence for {t}'s season.", '{n} proves there is always room at the bottom.'];
+    const idx = [...done].reverse().findIndex(x => x.season === sn.season);
+    const tb = f.last ? (() => { const n = who(sn, f.last), t = sn.rname[f.last]; return `<div class="tbowl">${face(n, true)}<div><div class="tbt">🚽 Toilet Bowl Champion</div><b>${esc(n)}</b><div class="sub">${esc(t)}</div><p class="roast">${esc(roasts[idx % roasts.length].replace(/\{n\}/g, n.split(' ')[0]).replace(/\{t\}/g, t))}</p></div></div>`; })() : '<p class="msg">No lower bracket was recorded for this season.</p>';
+    const M = {}, cur = new Set(S[0].ro.map(r => S[0].mgr[r.owner_id])), add = (n, k) => { (M[n] ??= {n, g: 0, s: 0, b: 0, t: 0})[k]++; };
+    done.forEach(x => { const q = fin(x); if (q.first) add(who(x, q.first), 'g'); if (q.second) add(who(x, q.second), 's'); if (q.third) add(who(x, q.third), 'b'); if (q.last) add(who(x, q.last), 't'); });
+    const med = Object.values(M).sort((a, b) => b.g - a.g || b.s - a.s || b.b - a.b || a.t - b.t || a.n.localeCompare(b.n));
+    const bubs = `<div class="bubs">${done.map(x => `<button class="bub" aria-pressed="${x.season === sn.season}" onclick="view('trophy','${x.season}')">${x.season}</button>`).join('')}</div>`;
+    return `<h2>Trophy Room</h2><div class="rafters">${ban}</div>
+      <h3 class="rd" style="margin-top:30px">Season finishes</h3>${bubs}
+      <div class="podium">${pod(f.second, '2nd', 'p2', '🥈')}${pod(f.first, '1st', 'p1', '🥇')}${pod(f.third, '3rd', 'p3', '🥉')}</div>
+      ${tb}
+      <h3 class="rd" style="margin-top:30px">All-time medal table</h3><div class="scroll"><table><tr><th>Manager</th><th>🥇</th><th>🥈</th><th>🥉</th><th>🚽 Toilet Bowls</th></tr>
+      ${med.map(m => `<tr><td>${esc(m.n)}${cur.has(m.n) ? '' : ' <span class="mut">(retired)</span>'}</td><td>${m.g || '–'}</td><td>${m.s || '–'}</td><td>${m.b || '–'}</td><td>${m.t || '–'}</td></tr>`).join('')}</table></div>`;
   },
   async records() {
     if (RECS) return RECS;
