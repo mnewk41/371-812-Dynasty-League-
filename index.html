@@ -152,6 +152,14 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .tbt{font:700 12px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;color:#b08d57;margin-bottom:2px}
 .tbowl b{font:700 1.15rem Georgia,serif}.roast{margin:8px 0 0;font-style:italic;font-size:14px}
 @media(max-width:520px){.pface{width:64px;height:80px}.pod .medal{font-size:1.4rem}.pod b{font-size:.85rem}.tbowl{flex-direction:column;text-align:center}}
+.ph{flex-wrap:wrap}
+.cab{margin-left:auto;flex:none;width:200px;background:linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.02)),var(--card);border:6px solid #6b4a2b;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 4px 10px rgba(0,0,0,.18);padding:6px 8px 4px}
+.cabh{text-align:center;font:700 10px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:4px}
+.shelf{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:center;gap:6px;min-height:84px;padding:4px 2px 0;border-bottom:5px solid #8a6238}
+.tro{display:flex;flex-direction:column;align-items:center;width:52px;text-align:center}
+.tro small{font:600 9px system-ui,sans-serif;color:var(--muted);line-height:1.1;margin-top:2px}
+.tbq{font-size:34px;line-height:1.5;filter:grayscale(.2)}
+@media(max-width:560px){.cab{margin-left:0;width:100%}}
 </style>
 </head>
 <body>
@@ -651,17 +659,42 @@ async function setHeadshot(name) {
     el.onload = () => { el.style.display = 'block'; }; el.onerror = next; next();
   } catch (e) {}
 }
+/* ---------- trophy cabinet (Lombardi-style trophies) ---------- */
+function seasonFin(x) {
+  const w = x.wb || [], l = x.lb || [], m1 = w.find(m => m.p === 1), m3 = w.find(m => m.p === 3), f = {};
+  if (m1) { f.first = m1.w; f.second = m1.l; } if (m3) f.third = m3.w;
+  const mp = Math.max(0, ...l.map(m => m.p || 0)), lm = mp ? l.find(m => m.p === mp) : null; if (lm) f.last = lm.l;
+  return f;
+}
+function trophySvg(k) {
+  const c = {g: ['#fff4b0', '#d4af37', '#8a6a12'], s: ['#ffffff', '#b8c0c8', '#6f7b86'], b: ['#f6d2ae', '#b87333', '#6e4219']}[k], id = 'tg' + k;
+  return `<svg viewBox="0 0 60 100" width="40" height="66" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset=".45" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></linearGradient></defs>
+    <path d="M12 99 L48 99 L46 91 L14 91 Z" fill="url(#${id})"/><path d="M18 91 L42 91 L40 83 L20 83 Z" fill="url(#${id})" opacity=".92"/>
+    <path d="M23 83 C27 71 22 63 19 55 L41 55 C38 63 33 71 37 83 Z" fill="url(#${id})"/>
+    <ellipse cx="30" cy="30" rx="13" ry="27" transform="rotate(-12 30 30)" fill="url(#${id})"/>
+    <path d="M30 14 L30 46 M25.5 20 L34.5 20 M25 26 L35 26 M25 32 L35 32 M25.5 38 L34.5 38" stroke="rgba(0,0,0,.4)" stroke-width="1.5" stroke-linecap="round" fill="none" transform="rotate(-12 30 30)"/>
+    <path d="M21.5 11 C27 15 33 15 38.5 11 M21.5 49 C27 45 33 45 38.5 49" stroke="rgba(0,0,0,.28)" stroke-width="1.3" fill="none" transform="rotate(-12 30 30)"/>
+    <ellipse cx="25" cy="22" rx="2.6" ry="9" transform="rotate(-12 30 30)" fill="#fff" opacity=".35"/></svg>`;
+}
+function cabinet(M) {
+  const by = f => M.rows.filter(f).map(x => x.season).sort(), g = by(x => x.champ), sv = by(x => x.ru), br = by(x => x.third), tb = by(x => x.last);
+  const t = (k, y, lab) => `<div class="tro">${trophySvg(k)}<small>${lab ? lab + ' ' : ''}${y}</small></div>`;
+  const shelf = (items, empty) => `<div class="shelf">${items || `<span class="sub">${empty}</span>`}</div>`;
+  return `<div class="cab"><div class="cabh">Trophy Cabinet</div>${shelf(g.map(y => t('g', y)).join(''), 'No titles yet')}
+    ${sv.length + br.length ? shelf(sv.map(y => t('s', y, '2nd')).join('') + br.map(y => t('b', y, '3rd')).join(''), '') : ''}
+    ${tb.length ? shelf(tb.map(y => `<div class="tro"><span class="tbq">🚽</span><small>Toilet Bowl ${y}</small></div>`).join(''), '') : ''}</div>`;
+}
 /* ---------- manager profiles (career resume, built from every season) ---------- */
 let MGR = null;
 async function buildMgr() {
   if (MGR) return MGR;
   const out = {};
   for (const s of S) {
-    const prs = await seasonPairs(s), H = h2hOf(prs), nm = rid => s.mgr[s.rown[rid]] || 'Unknown';
+    const prs = await seasonPairs(s), H = h2hOf(prs), nm = rid => s.mgr[s.rown[rid]] || 'Unknown', fn = s.lg.status === 'complete' ? seasonFin(s) : {};
     const order = [...s.ro].sort((a, b) => b.settings.wins - a.settings.wins || pts(b) - pts(a)).map(r => r.roster_id), bk = new Set();
     (s.wb || []).forEach(m => [m.t1, m.t2].forEach(t => { if (typeof t === 'number') bk.add(t); }));
     s.ro.forEach(r => { const m = out[nm(r.roster_id)] ??= {n: nm(r.roster_id), rows: [], bw: null, bm: null}, h = H[r.roster_id] || {w: 0, l: 0, t: 0, pa: 0};
-      m.rows.push({season: s.season, team: s.rname[r.roster_id], w: h.w, l: h.l, t: h.t, pf: pts(r), pa: h.pa, rank: order.indexOf(r.roster_id) + 1, po: bk.has(r.roster_id), champ: s.champ === r.roster_id, ru: s.ru === r.roster_id, done: s.lg.status === 'complete'}); });
+      m.rows.push({season: s.season, team: s.rname[r.roster_id], w: h.w, l: h.l, t: h.t, pf: pts(r), pa: h.pa, rank: order.indexOf(r.roster_id) + 1, po: bk.has(r.roster_id), champ: s.champ === r.roster_id, ru: s.ru === r.roster_id, third: fn.third === r.roster_id, last: fn.last === r.roster_id, done: s.lg.status === 'complete'}); });
     prs.forEach(p => {
       const A = out[nm(p.a.roster_id)], B = out[nm(p.b.roster_id)];
       [[A, p.a], [B, p.b]].forEach(([m, x]) => { if (!m.bw || x.points > m.bw.v) m.bw = {v: x.points, season: s.season, week: p.week}; });
@@ -697,7 +730,7 @@ async function openMgr(name) {
     const about = (blocks ? `<div class="abs">${blocks}</div>` : '') + (info.bio ? `<p>${esc(info.bio)}</p>` : '') + (info.note ? `<p>${esc(info.note)}</p>` : '');
     const tile = (k, v) => `<div class="tile"><b>${v}</b><span>${k}</span></div>`;
     body.innerHTML = `<div class="ph">${PHOTOS[name] ? `<img class="pphoto" src="${PHOTOS[name].f}" alt="${esc(name)}">` : ''}<div class="av2 big" style="${PHOTOS[name] ? 'display:none' : ''}">${esc(ini)}${u.avatar ? `<img src="https://sleepercdn.com/avatars/thumbs/${esc(u.avatar)}" alt="" onerror="this.remove()">` : ''}</div>
-      <div><h2 style="margin:0">${esc(name)}${isC ? ' <span class="cm">Commissioner</span>' : ''}</h2><div class="sub">${esc(cur.rname[r.roster_id])} · Sleeper: ${esc(uname)}</div><div class="sub">In the league since ${M.rows[M.rows.length - 1].season}</div></div></div>
+      <div><h2 style="margin:0">${esc(name)}${isC ? ' <span class="cm">Commissioner</span>' : ''}</h2><div class="sub">${esc(cur.rname[r.roster_id])} · Sleeper: ${esc(uname)}</div><div class="sub">In the league since ${M.rows[M.rows.length - 1].season}</div></div>${cabinet(M)}</div>
       <h4 class="ph4">About</h4>${about || '<p class="sub">Bio coming soon.</p>'}
       <h4 class="ph4">Career</h4><div class="tiles">${tile('Seasons', M.rows.length)}${tile('Record', `${tot.w}-${tot.l}${tot.t ? '-' + tot.t : ''}`)}${tile('Win %', pct.toFixed(1) + '%')}${tile('Titles', titles.length)}${tile('Playoff trips', po)}${tile('Avg points', g ? f(tot.pf / g) : '–')}</div>
       <p class="sub">${titles.length ? '🏆 Champion: ' + titles.join(', ') : 'No championships yet'}${ru.length ? ' · Runner-up: ' + ru.join(', ') : ''}</p>
