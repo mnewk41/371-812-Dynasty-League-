@@ -168,6 +168,21 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .rh{display:flex;gap:14px;align-items:center;margin:10px 0 14px}.rh .pface{width:64px;height:80px;margin:0}
 .rg{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;align-items:start}
 .inj{flex:none;font:700 10px system-ui,sans-serif;background:#c0392b;color:#fff;border-radius:6px;padding:2px 6px}.inj.q{background:#d69e2e}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.cgrid{grid-template-columns:1fr}}
+.cside select{width:100%;margin-bottom:6px}
+.ctot{font:14px system-ui,sans-serif;margin-bottom:6px;color:var(--muted)}.ctot b{color:var(--accent);font-size:1.1rem}
+.cl{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.ci{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 10px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--fg);cursor:pointer;font-family:system-ui,sans-serif}
+.ci.on{background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.ci img{flex:none;width:30px;height:30px;border-radius:50%;object-fit:cover;background:var(--line)}
+.pkb{flex:none;width:30px;height:30px;border-radius:8px;background:var(--line);color:var(--muted);font:700 8px system-ui,sans-serif;display:flex;align-items:center;justify-content:center}
+.cn{flex:1;min-width:0;line-height:1.2}.cn b{font-size:13px;display:block}.cn small{color:var(--muted);font-size:11px}
+.cv{flex:none;font-weight:700;font-size:13px}
+.cres{margin-top:16px;font-family:system-ui,sans-serif}
+.cbar{height:16px;background:var(--muted);opacity:.9;border-radius:8px;overflow:hidden;margin:4px 0}.cbar span{display:block;height:100%;background:var(--accent)}
+.cleg{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.cv2{font-size:1.05rem;margin:10px 0 6px}
 </style>
 </head>
 <body>
@@ -388,6 +403,11 @@ const views = {
     return `<h2>Rosters</h2><p class="sub">Tap a team to see its roster. ★ marks players in the starting lineup.</p>${bubs}
       <div class="rh">${ph ? `<img class="pface" src="${ph.f}" alt="${esc(n)}">` : ''}<div><h3 style="margin:0;font:700 1.4rem Georgia,serif">${esc(team(r))}</h3><div class="sub">${esc(n)} · ${rec(r)} · ${active.length} active · ${taxi.length} taxi · ${ir.length} IR · average age ${avg}</div></div></div>
       <div class="rg">${blocks.join('')}${grp('Taxi squad', taxi)}${grp('Injured reserve', ir)}</div>`;
+  },
+  async calc() {
+    try { if (!CALC) await calcLoad(); }
+    catch (e) { return `<h2>Trade Calculator</h2><p class="msg">Couldn't load trade values (${esc(e.message)}). Refresh to try again.</p>`; }
+    return `<h2>Trade Calculator</h2><p class="sub">Choose two teams, then tap the players and picks that would be traded. Tap again to remove one.</p><div id="calc">${calcHtml()}</div>`;
   },
   async managers() {
     const cur = S[0], T = {}, A = {};
@@ -869,7 +889,68 @@ async function headlines() {
 }
 function bigPhoto(id, cls) { const e = (PL && PL[id] && PL[id].espn_id) || ''; return `<img class="${cls}" alt="" data-e="${e}" src="${/^\d+$/.test(id) ? 'https://sleepercdn.com/content/nfl/players/' + id + '.jpg' : photo(id)}" onerror="phFb(this)">`; }
 function phFb(img) { if (img.dataset.e && !img.dataset.t) { img.dataset.t = 1; img.src = 'https://a.espncdn.com/i/headshots/nfl/players/full/' + img.dataset.e + '.png'; } else img.style.visibility = 'hidden'; }
-const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['rosters','Rosters'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
+/* ---------- dynasty trade calculator (values from FantasyCalc: dynasty, 1QB, 10 teams, PPR, no TE premium) ---------- */
+let CALC = null;
+async function fcValues() {
+  const K = 'fc_dyn_1qb_10_ppr1_v1', now = Date.now();
+  let old = null; try { old = JSON.parse(localStorage.getItem(K) || 'null'); } catch (e) {}
+  if (old && now - old.t < 3 * 36e5) return old;
+  try {
+    const r = await fetch('https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=1&numTeams=10&ppr=1&tep=none');
+    if (!r.ok) throw new Error('FantasyCalc ' + r.status);
+    const d = await r.json(), c = {t: now, d: d.map(x => ({id: String(x.player.sleeperId || ''), n: x.player.name, p: x.player.position, v: x.value}))};
+    try { localStorage.setItem(K, JSON.stringify(c)); } catch (e) {}
+    return c;
+  } catch (e) { if (old) return old; throw e; }
+}
+function calcBuild(c) {
+  const V = {}, picks = [];
+  c.d.forEach(x => { if (x.p === 'PICK') picks.push(x); else if (x.id) V[x.id] = x.v; });
+  const P = picks.map(x => { const m = String(x.n).match(/(20\d\d).*?(early|mid|late).*?(\d)(?:st|nd|rd|th)/i) || String(x.n).match(/(20\d\d)\D*(\d)(?:st|nd|rd|th)\D*(early|mid|late)/i); const i = String(x.id).match(/^FP_(\d{4})_(early|mid|late)_(\d)/i);
+    return m ? {s: m[1], t: (m[2].length > 1 ? m[2] : m[3]).toLowerCase(), r: +(m[2].length > 1 ? m[3] : m[2]), v: x.v} : i ? {s: i[1], t: i[2].toLowerCase(), r: +i[3], v: x.v, z: 1} : null; }).filter(Boolean);
+  if (P.some(x => x.z) && P.filter(x => x.z).every(x => x.r === 0 || P.filter(y => y.z).some(y => y.r === 0))) P.forEach(x => { if (x.z) x.r++; });
+  return {V, P, t: c.t};
+}
+function calcPickVal(season, tier, round) { const x = CALC.P.find(p => p.s === String(season) && p.t === tier && p.r === round); return x ? x.v : null; }
+async function calcLoad() {
+  const s = S[0], [fc, ro, tp] = await Promise.all([fcValues(), get(`/league/${s.id}/rosters`), get(`/league/${s.id}/traded_picks`).catch(() => [])]);
+  if (!PL) PL = await get('/players/nfl');
+  const st = [...ro].sort((a, b) => b.settings.wins - a.settings.wins || pts(b) - pts(a)), rank = {}; st.forEach((r, i) => rank[r.roster_id] = i + 1);
+  const b = calcBuild(fc); CALC = {...b, ro: st, tp, rank, a: st[st.length - 1].roster_id, b: st[0].roster_id, sel: {a: new Set(), b: new Set()}};
+}
+function calcAssets(rid) {
+  const s = S[0], r = CALC.ro.find(x => x.roster_id === rid), pi = id => PL[id] || {}, next = +s.season + 1, T = CALC.ro.length;
+  const players = (r.players || []).map(id => ({k: id, id, n: pi(id).full_name || ((pi(id).first_name || '') + ' ' + (pi(id).last_name || '')).trim() || id, sub: (pi(id).position || '') + ' · ' + (pi(id).team || 'FA') + (pi(id).age ? ' · age ' + pi(id).age : ''), v: CALC.V[id] ?? null})).sort((a, b) => (b.v ?? -1) - (a.v ?? -1));
+  const picks = [];
+  for (let yr = next; yr <= next + 2; yr++) for (let rd = 1; rd <= 5; rd++) CALC.ro.forEach(o => {
+    const tr = CALC.tp.find(x => String(x.season) === String(yr) && x.round === rd && x.roster_id === o.roster_id), owner = tr ? tr.owner_id : o.roster_id; if (owner !== rid) return;
+    const rk = CALC.rank[o.roster_id], tier = yr === next ? (rk <= 3 ? 'late' : rk <= 7 ? 'mid' : 'early') : 'mid';
+    picks.push({k: `pk:${yr}:${rd}:${o.roster_id}`, n: `${yr} round ${rd} pick`, sub: (o.roster_id === rid ? 'own pick' : 'from ' + (s.rname[o.roster_id] || 'a team')) + ' · ' + tier, v: calcPickVal(yr, tier, rd)});
+  });
+  return [...players, ...picks];
+}
+function calcToggle(side, k) { const st = CALC.sel[side]; st.has(k) ? st.delete(k) : st.add(k); calcRender(); }
+function calcTeam(side, rid) { CALC[side] = +rid; CALC.sel[side].clear(); calcRender(); }
+function calcClear() { CALC.sel.a.clear(); CALC.sel.b.clear(); calcRender(); }
+function calcRender() { const el = document.getElementById('calc'); if (el) el.innerHTML = calcHtml(); }
+function calcHtml() {
+  const s = S[0], n = r => s.rname[r] || 'Team ' + r, fmt = v => v == null ? '–' : Math.round(v).toLocaleString();
+  const as = {a: calcAssets(CALC.a), b: calcAssets(CALC.b)}, sum = side => as[side].filter(x => CALC.sel[side].has(x.k)).reduce((t, x) => t + (x.v || 0), 0);
+  const give = {a: sum('a'), b: sum('b')}, recA = give.b, recB = give.a, diff = recA - recB, big = Math.max(recA, recB), fair = big === 0 || Math.abs(diff) <= Math.max(100, big * 0.04);
+  const side = k => `<div class="cside"><select onchange="calcTeam('${k}',this.value)">${CALC.ro.map(r => `<option value="${r.roster_id}"${r.roster_id === CALC[k] ? ' selected' : ''}>${esc(n(r.roster_id))}</option>`).join('')}</select>
+    <div class="ctot">${esc(n(CALC[k]))} sends <b>${fmt(give[k])}</b></div><div class="cl">${as[k].map(x => `<button class="ci${CALC.sel[k].has(x.k) ? ' on' : ''}" onclick="calcToggle('${k}','${x.k}')">${/^\d+$/.test(x.k) ? `<img src="${photo(x.k)}" alt="" onerror="this.style.visibility='hidden'">` : '<span class="pkb">PICK</span>'}<span class="cn"><b>${esc(x.n)}</b><small>${esc(x.sub)}</small></span><span class="cv">${fmt(x.v)}</span></button>`).join('')}</div></div>`;
+  let verdict = '<p class="sub">Pick players and draft picks from each team to see who comes out ahead.</p>';
+  if (CALC.sel.a.size + CALC.sel.b.size) {
+    const winner = diff > 0 ? CALC.a : CALC.b, loser = diff > 0 ? CALC.b : CALC.a, gap = Math.abs(diff), pct = recA + recB ? recA / (recA + recB) * 100 : 50;
+    const near = fair ? null : as[loser === CALC.a ? 'a' : 'b'].filter(x => !CALC.sel[loser === CALC.a ? 'a' : 'b'].has(x.k) && x.v).sort((x, y) => Math.abs(x.v - gap) - Math.abs(y.v - gap))[0];
+    verdict = `<div class="cbar"><span style="width:${pct.toFixed(1)}%"></span></div><div class="cleg"><span>${esc(n(CALC.a))} gets ${fmt(recA)}</span><span>${esc(n(CALC.b))} gets ${fmt(recB)}</span></div>
+      <div class="cv2">${fair ? '⚖️ This looks like a fair trade.' : `<b>${esc(n(winner))}</b> wins this one by <b>${fmt(gap)}</b> (${((gap / (big || 1)) * 100).toFixed(0)}% of the bigger side).`}</div>
+      ${near ? `<p class="sub">To even it out, ${esc(n(loser))} could add something worth about ${fmt(gap)}, like ${esc(near.n)} (${fmt(near.v)}).</p>` : ''}`;
+  }
+  return `<div class="cgrid">${side('a')}${side('b')}</div><div class="cres">${verdict}<button class="bub" onclick="calcClear()">Clear</button></div>
+    <p class="sub" style="margin-top:12px">Values come from <a href="https://fantasycalc.com" target="_blank" rel="noopener">FantasyCalc.com</a> (dynasty, 1 QB, 10 teams, full PPR, no TE premium), last updated ${new Date(CALC.t).toLocaleString()}. They refresh at most every 3 hours. A dash means FantasyCalc has no value for that player or pick. Totals are a simple sum, so they don't reward consolidating two assets into one.</p>`;
+}
+const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['rosters','Rosters'],['calc','Trade Calculator'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
 function acc(b){const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!o));b.nextElementSibling.hidden=o;}
 function weekSel(w, v) {
   return `<select onchange="view('${v}',this.value)">${Array.from({length: 18}, (_, i) => `<option value="${i + 1}"${i + 1 == w ? ' selected' : ''}>Week ${i + 1}</option>`).join('')}</select>`;
