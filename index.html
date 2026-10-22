@@ -160,6 +160,14 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .tro small{font:600 9px system-ui,sans-serif;color:var(--muted);line-height:1.1;margin-top:2px}
 .tbq{font-size:34px;line-height:1.5;filter:grayscale(.2)}
 @media(max-width:560px){.cab{margin-left:0;width:100%}}
+.tbubs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 12px;margin-bottom:6px}
+.tbub{flex:none;display:flex;align-items:center;gap:8px;font:600 13px system-ui,sans-serif;padding:5px 12px 5px 5px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+.tbub[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.tbi{width:30px;height:30px;border-radius:50%;background:var(--line);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;overflow:hidden}
+.tbi img{width:100%;height:100%;object-fit:cover;object-position:center top}
+.rh{display:flex;gap:14px;align-items:center;margin:10px 0 14px}.rh .pface{width:64px;height:80px;margin:0}
+.rg{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;align-items:start}
+.inj{flex:none;font:700 10px system-ui,sans-serif;background:#c0392b;color:#fff;border-radius:6px;padding:2px 6px}.inj.q{background:#d69e2e}
 </style>
 </head>
 <body>
@@ -358,6 +366,28 @@ const views = {
         <div class="thr"><div class="thl">${esc(H.hl)}</div>${photos ? `<div class="tphs">${photos}</div>` : ''}</div>${H.why ? `<div class="trs">${esc(H.why)}</div>` : ''}${body}<div class="tt">${esc(tag)}</div></div></div>`;
     }).join('');
     return `<h2>Trades and Waivers</h2>${weekSel(w, 'trades')}<div class="feed">${items || '<p class="msg" style="padding:16px">No moves this week.</p>'}</div><p class="sub" style="margin-top:10px">The insiders, headlines and reasons are made up for fun. The moves and injury statuses are real.</p>`;
+  },
+  async rosters(rid) {
+    const s = S[0];
+    const [ro] = await Promise.all([get(`/league/${s.id}/rosters`), PL ? 0 : get('/players/nfl').then(p => PL = p)]);
+    const standing = [...ro].sort((a, b) => b.settings.wins - a.settings.wins || pts(b) - pts(a));
+    const r = ro.find(x => x.roster_id === +rid) || standing[0], pi = id => PL[id] || {};
+    const nm = id => pi(id).full_name || ((pi(id).first_name || '') + ' ' + (pi(id).last_name || '')).trim() || id;
+    const who = x => s.mgr[x.owner_id] || 'Open team', team = x => s.rname[x.roster_id] || 'Team ' + x.roster_id;
+    const bubs = `<div class="tbubs">${standing.map(x => { const n = who(x), ph = PHOTOS[n];
+      return `<button class="tbub" aria-pressed="${x.roster_id === r.roster_id}" onclick="view('rosters',${x.roster_id})"><span class="tbi">${ph ? `<img src="${ph.t}" alt="">` : esc(n.split(' ').map(w => w[0]).slice(0, 2).join(''))}</span><span>${esc(team(x))}</span></button>`; }).join('')}</div>`;
+    const set = new Set(r.starters || []), taxi = r.taxi || [], ir = r.reserve || [], out = new Set([...taxi, ...ir]);
+    const active = (r.players || []).filter(id => !out.has(id));
+    const order = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'], pos = id => pi(id).position || 'OTHER';
+    const tag = id => { const st = pi(id).injury_status; return st && st !== 'NA' ? `<span class="inj ${st === 'Questionable' ? 'q' : ''}">${esc(st === 'Questionable' ? 'Q' : st)}</span>` : ''; };
+    const row = id => `<div class="pr"><img src="${photo(id)}" alt="" onerror="this.style.visibility='hidden'"><span class="pn"><b>${set.has(id) ? '★ ' : ''}${esc(nm(id))}</b><small>${esc(pos(id) + ' · ' + (pi(id).team || 'FA') + (pi(id).age ? ' · age ' + pi(id).age : ''))}</small></span>${tag(id)}</div>`;
+    const grp = (label, ids) => ids.length ? `<div class="ms"><h4>${esc(label)} (${ids.length})</h4>${ids.map(row).join('')}</div>` : '';
+    const blocks = [...order, ...[...new Set(active.map(pos))].filter(x => !order.includes(x))].map(g => grp(g, active.filter(id => pos(id) === g).sort((a, b) => (set.has(b) - set.has(a)) || nm(a).localeCompare(nm(b)))));
+    const ages = active.map(id => pi(id).age).filter(Boolean), avg = ages.length ? (ages.reduce((a, b) => a + b, 0) / ages.length).toFixed(1) : '–';
+    const n = who(r), ph = PHOTOS[n];
+    return `<h2>Rosters</h2><p class="sub">Tap a team to see its roster. ★ marks players in the starting lineup.</p>${bubs}
+      <div class="rh">${ph ? `<img class="pface" src="${ph.f}" alt="${esc(n)}">` : ''}<div><h3 style="margin:0;font:700 1.4rem Georgia,serif">${esc(team(r))}</h3><div class="sub">${esc(n)} · ${rec(r)} · ${active.length} active · ${taxi.length} taxi · ${ir.length} IR · average age ${avg}</div></div></div>
+      <div class="rg">${blocks.join('')}${grp('Taxi squad', taxi)}${grp('Injured reserve', ir)}</div>`;
   },
   async managers() {
     const cur = S[0], T = {}, A = {};
@@ -613,12 +643,10 @@ async function renderMu() {
     const row = (slot, id, pt) => !id || id === '0' ? `<div class="pr"><span class="sl">${esc(slot)}</span><span class="pn"><small>Empty</small></span><span class="pt">0.00</span></div>` :
       `<div class="pr"><span class="sl">${esc(slot)}</span><img src="${photo(id)}" alt="" onerror="this.style.visibility='hidden'"><span class="pn"><b>${esc(nm(id))}</b><small>${esc(((PL[id] && PL[id].position) || '') + ' · ' + ((PL[id] && PL[id].team) || 'FA'))}</small></span><span class="pt">${pt == null ? '–' : Number(pt).toFixed(2)}</span></div>`;
     const side = x => {
-      const r = s.ro.find(r => r.roster_id === x.roster_id) || {}, used = new Set(x.starters), out = new Set([...(r.taxi || []), ...(r.reserve || [])]);
-      const bench = (x.players || []).filter(id => !used.has(id) && !out.has(id)).sort((a, b) => (x.players_points[b] || 0) - (x.players_points[a] || 0));
+      const r = s.ro.find(r => r.roster_id === x.roster_id) || {};
       return `<div class="ms"><div class="mh"><div><b>${esc(s.rname[x.roster_id])}</b><div class="sub">${esc(s.mgr[r.owner_id] || '')} · ${r.settings ? rec(r) : ''}</div></div><div class="tot">${(x.points || 0).toFixed(2)}</div></div>
         <h4>Starters</h4>${x.starters.map((id, i) => row(slots[i] || 'FLEX', id, x.starters_points[i])).join('')}
-        <h4>Bench</h4>${bench.map(id => row('BN', id, x.players_points[id])).join('') || '<p class="sub">None</p>'}
-        ${(r.reserve || []).length ? `<h4>IR</h4>${r.reserve.map(id => row('IR', id, null)).join('')}` : ''}${(r.taxi || []).length ? `<h4>Taxi</h4>${r.taxi.map(id => row('TX', id, null)).join('')}` : ''}</div>`;
+        </div>`;
     };
     body.innerHTML = `<p class="sub">Week ${MU.w} · live scoring updates every 30 seconds while this is open · last updated ${new Date().toLocaleTimeString()}</p><div class="mg">${pair.map(side).join('')}</div>`;
   } catch (e) { body.innerHTML = `<p class="msg">Couldn't load this matchup (${esc(e.message)}).</p>`; }
@@ -841,7 +869,7 @@ async function headlines() {
 }
 function bigPhoto(id, cls) { const e = (PL && PL[id] && PL[id].espn_id) || ''; return `<img class="${cls}" alt="" data-e="${e}" src="${/^\d+$/.test(id) ? 'https://sleepercdn.com/content/nfl/players/' + id + '.jpg' : photo(id)}" onerror="phFb(this)">`; }
 function phFb(img) { if (img.dataset.e && !img.dataset.t) { img.dataset.t = 1; img.src = 'https://a.espncdn.com/i/headshots/nfl/players/full/' + img.dataset.e + '.png'; } else img.style.visibility = 'hidden'; }
-const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
+const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['rosters','Rosters'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
 function acc(b){const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!o));b.nextElementSibling.hidden=o;}
 function weekSel(w, v) {
   return `<select onchange="view('${v}',this.value)">${Array.from({length: 18}, (_, i) => `<option value="${i + 1}"${i + 1 == w ? ' selected' : ''}>Week ${i + 1}</option>`).join('')}</select>`;
