@@ -942,10 +942,10 @@ function calcHtml() {
   let verdict = '<p class="sub">Pick players and draft picks from each team to see who comes out ahead.</p>';
   if (CALC.sel.a.size + CALC.sel.b.size) {
     const winner = diff > 0 ? CALC.a : CALC.b, loser = diff > 0 ? CALC.b : CALC.a, gap = Math.abs(diff), pct = recA + recB ? recA / (recA + recB) * 100 : 50;
-    const near = fair ? null : as[loser === CALC.a ? 'a' : 'b'].filter(x => !CALC.sel[loser === CALC.a ? 'a' : 'b'].has(x.k) && x.v).sort((x, y) => Math.abs(x.v - gap) - Math.abs(y.v - gap))[0];
+    const ws = winner === CALC.a ? 'a' : 'b', near = fair ? null : as[ws].filter(x => !CALC.sel[ws].has(x.k) && x.v).sort((x, y) => Math.abs(x.v - gap) - Math.abs(y.v - gap))[0];
     verdict = `<div class="cbar"><span style="width:${pct.toFixed(1)}%"></span></div><div class="cleg"><span>${esc(n(CALC.a))} gets ${fmt(recA)}</span><span>${esc(n(CALC.b))} gets ${fmt(recB)}</span></div>
       <div class="cv2">${fair ? '⚖️ This looks like a fair trade.' : `<b>${esc(n(winner))}</b> wins this one by <b>${fmt(gap)}</b> (${((gap / (big || 1)) * 100).toFixed(0)}% of the bigger side).`}</div>
-      ${near ? `<p class="sub">To even it out, ${esc(n(loser))} could add something worth about ${fmt(gap)}, like ${esc(near.n)} (${fmt(near.v)}).</p>` : ''}`;
+      ${near ? `<p class="sub">To even it out, ${esc(n(winner))} could add something worth about ${fmt(gap)}, like ${esc(near.n)} (${fmt(near.v)}).</p>` : ''}`;
   }
   return `<div class="cgrid">${side('a')}${side('b')}</div><div class="cres">${verdict}<button class="bub" onclick="calcClear()">Clear</button></div>
     <p class="sub" style="margin-top:12px">Values come from <a href="https://fantasycalc.com" target="_blank" rel="noopener">FantasyCalc.com</a> (dynasty, 1 QB, 10 teams, full PPR, no TE premium), last updated ${new Date(CALC.t).toLocaleString()}. They refresh at most every 3 hours. A dash means FantasyCalc has no value for that player or pick. Totals are a simple sum, so they don't reward consolidating two assets into one.</p>`;
