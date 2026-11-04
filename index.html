@@ -20,10 +20,11 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:Georgia,serif;lin
 .wrap{max-width:1000px;margin:0 auto;padding:0 20px}
 .ticker{position:sticky;top:0;z-index:10;display:flex;background:#0b1f13;color:#eef3ec;border-bottom:2px solid var(--accent);font:600 14px system-ui,sans-serif}
 .lbl{flex:none;background:var(--accent);color:#fff;padding:10px 14px;font-size:12px;display:flex;align-items:center}
-.tw{overflow:hidden;flex:1}.track{display:flex;width:max-content;animation:tick 60s linear infinite}.track:hover{animation-play-state:paused}.set{display:flex}
+.tw{overflow:hidden;flex:1;min-width:0;touch-action:pan-y}.track{display:flex;width:max-content;animation:tick var(--d,60s) linear infinite;will-change:transform;backface-visibility:hidden}@media(hover:hover){.track:hover{animation-play-state:paused}}.track.hold{animation-play-state:paused}.set{display:flex}
 .item{padding:10px 24px;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15)}.item.live{color:#ff6b6b}
 @keyframes tick{to{transform:translateX(-50%)}}
 @media(prefers-reduced-motion:reduce){.track{animation:none}.tw{overflow-x:auto}}
+@media(max-width:520px){.ticker{font-size:13px}.lbl{padding:9px 10px}.item{padding:9px 16px}.tl{width:20px;height:20px}}
 header{background:#000;padding:26px 20px 20px;text-align:center;border-bottom:4px solid var(--accent)}
 .logo{display:block;width:min(270px,72vw);height:auto;margin:0 auto 6px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -975,6 +976,7 @@ function go() {
 }
 
 /* ---------- NFL ticker (ESPN public scoreboard, refreshes every minute) ---------- */
+let tkHTML = '', tkRel;
 async function tick() {
   try {
     const d = await (await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')).json();
@@ -984,8 +986,26 @@ async function tick() {
       const pre = st.state === 'pre';
       return `<span class="item${st.state === 'in' ? ' live' : ''}">${side(a, !pre)} @ ${side(h, !pre)} · ${esc(st.shortDetail)}</span>`;
     }).join('');
-    $('#tk').innerHTML = `<div class="set">${it}</div><div class="set" aria-hidden="true">${it}</div>`;
+    const tk = $('#tk');
+    if (!it || it === tkHTML) return;          // nothing new: leave the scroll alone
+    tkHTML = it;
+    const old = parseFloat(tk.style.getPropertyValue('--d')) * 1000 || 0, an = tk.getAnimations()[0];
+    const prog = an && old ? (Number(an.currentTime) % old) / old : 0;   // keep scroll position across refreshes
+    const vw = tk.parentElement.clientWidth;
+    tk.innerHTML = `<div class="set">${it}</div>`;
+    const reps = Math.max(1, Math.ceil(vw / (tk.firstChild.offsetWidth || 1)));   // fill the screen if only a few games
+    const set = it.repeat(reps);
+    tk.innerHTML = `<div class="set">${set}</div><div class="set" aria-hidden="true">${set}</div>`;
+    const dur = Math.max(20, tk.firstChild.offsetWidth / 45);   // steady ~45px/sec on any screen
+    tk.style.setProperty('--d', dur + 's');
+    tk.style.animationDelay = (-prog * dur) + 's';
   } catch (e) {}
+}
+// touch: pause while a finger is on the ticker, resume shortly after
+{
+  const tw = $('#tk').parentElement, tk = $('#tk');
+  tw.addEventListener('pointerdown', () => { clearTimeout(tkRel); tk.classList.add('hold'); });
+  ['pointerup', 'pointercancel'].forEach(ev => tw.addEventListener(ev, () => { clearTimeout(tkRel); tkRel = setTimeout(() => tk.classList.remove('hold'), 2500); }));
 }
 tick(); setInterval(tick, 60000);
 init().catch(e => { $('#main').innerHTML = `<p class="msg">Couldn't reach Sleeper (${esc(e.message)}). Refresh to try again.</p>`; });
