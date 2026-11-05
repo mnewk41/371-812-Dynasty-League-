@@ -920,6 +920,22 @@ function calcBuild(c) {
   return {V, P, t: c.t};
 }
 function calcPickVal(season, tier, round) { const x = CALC.P.find(p => p.s === String(season) && p.t === tier && p.r === round); return x ? x.v : null; }
+/* Future-pick values. Order of preference:
+   1) FantasyCalc's own value for that pick, 2) a value you type into PICK_MANUAL below,
+   3) an estimate: the nearest earlier year's value for the same pick, cut by PICK_DISCOUNT for each year out.
+   To add real numbers (from Dynasty Daddy, KeepTradeCut, FantasyPros), fill in PICK_MANUAL as 'year:tier:round': value,
+   for example '2028:mid:1': 3300. Tier is early, mid or late. Use the same 0-10,000 scale as the calculator's player values. */
+const PICK_MANUAL = {};
+const PICK_DISCOUNT = 0.85;
+function calcPickInfo(season, tier, round) {
+  const v = calcPickVal(season, tier, round); if (v != null) return {v};
+  const m = PICK_MANUAL[`${season}:${tier}:${round}`]; if (m != null) return {v: m, man: true};
+  for (let y = +season - 1; y >= +season - 3; y--) {
+    const b = calcPickVal(y, tier, round) ?? calcPickVal(y, 'mid', round);
+    if (b != null) return {v: b * Math.pow(PICK_DISCOUNT, +season - y), est: true};
+  }
+  return {v: null};
+}
 async function calcLoad() {
   const s = S[0], [fc, ro, tp] = await Promise.all([fcValues(), get(`/league/${s.id}/rosters`), get(`/league/${s.id}/traded_picks`).catch(() => [])]);
   if (!PL) PL = await get('/players/nfl');
@@ -933,7 +949,7 @@ function calcAssets(rid) {
   for (let yr = next; yr <= next + 2; yr++) for (let rd = 1; rd <= 5; rd++) CALC.ro.forEach(o => {
     const tr = CALC.tp.find(x => String(x.season) === String(yr) && x.round === rd && x.roster_id === o.roster_id), owner = tr ? tr.owner_id : o.roster_id; if (owner !== rid) return;
     const rk = CALC.rank[o.roster_id], tier = yr === next ? (rk <= 3 ? 'late' : rk <= 7 ? 'mid' : 'early') : 'mid';
-    picks.push({k: `pk:${yr}:${rd}:${o.roster_id}`, n: `${yr} round ${rd} pick`, sub: (o.roster_id === rid ? 'own pick' : 'from ' + (s.rname[o.roster_id] || 'a team')) + ' · ' + tier, v: calcPickVal(yr, tier, rd)});
+    picks.push({k: `pk:${yr}:${rd}:${o.roster_id}`, n: `${yr} round ${rd} pick`, sub: (o.roster_id === rid ? 'own pick' : 'from ' + (s.rname[o.roster_id] || 'a team')) + ' · ' + tier, ...calcPickInfo(yr, tier, rd)});
   });
   return [...players, ...picks];
 }
@@ -946,17 +962,17 @@ function calcHtml() {
   const as = {a: calcAssets(CALC.a), b: calcAssets(CALC.b)}, sum = side => as[side].filter(x => CALC.sel[side].has(x.k)).reduce((t, x) => t + (x.v || 0), 0);
   const give = {a: sum('a'), b: sum('b')}, recA = give.b, recB = give.a, diff = recA - recB, big = Math.max(recA, recB), fair = big === 0 || Math.abs(diff) <= Math.max(100, big * 0.04);
   const side = k => `<div class="cside"><select onchange="calcTeam('${k}',this.value)">${CALC.ro.map(r => `<option value="${r.roster_id}"${r.roster_id === CALC[k] ? ' selected' : ''}>${esc(n(r.roster_id))}</option>`).join('')}</select>
-    <div class="ctot">${esc(n(CALC[k]))} sends <b>${fmt(give[k])}</b></div><div class="cl">${as[k].map(x => `<button class="ci${CALC.sel[k].has(x.k) ? ' on' : ''}" onclick="calcToggle('${k}','${x.k}')">${/^\d+$/.test(x.k) ? `<img src="${photo(x.k)}" alt="" onerror="this.style.visibility='hidden'">` : '<span class="pkb">PICK</span>'}<span class="cn"><b>${esc(x.n)}</b><small>${esc(x.sub)}</small></span><span class="cv">${fmt(x.v)}</span></button>`).join('')}</div></div>`;
+    <div class="ctot">${esc(n(CALC[k]))} sends <b>${fmt(give[k])}</b></div><div class="cl">${as[k].map(x => `<button class="ci${CALC.sel[k].has(x.k) ? ' on' : ''}" onclick="calcToggle('${k}','${x.k}')">${/^\d+$/.test(x.k) ? `<img src="${photo(x.k)}" alt="" onerror="this.style.visibility='hidden'">` : '<span class="pkb">PICK</span>'}<span class="cn"><b>${esc(x.n)}</b><small>${esc(x.sub)}</small></span><span class="cv">${x.est ? '~' : ''}${fmt(x.v)}</span></button>`).join('')}</div></div>`;
   let verdict = '<p class="sub">Pick players and draft picks from each team to see who comes out ahead.</p>';
   if (CALC.sel.a.size + CALC.sel.b.size) {
     const winner = diff > 0 ? CALC.a : CALC.b, loser = diff > 0 ? CALC.b : CALC.a, gap = Math.abs(diff), pct = recA + recB ? recA / (recA + recB) * 100 : 50;
     const ws = winner === CALC.a ? 'a' : 'b', near = fair ? null : as[ws].filter(x => !CALC.sel[ws].has(x.k) && x.v).sort((x, y) => Math.abs(x.v - gap) - Math.abs(y.v - gap))[0];
     verdict = `<div class="cbar"><span style="width:${pct.toFixed(1)}%"></span></div><div class="cleg"><span>${esc(n(CALC.a))} gets ${fmt(recA)}</span><span>${esc(n(CALC.b))} gets ${fmt(recB)}</span></div>
       <div class="cv2">${fair ? '⚖️ This looks like a fair trade.' : `<b>${esc(n(winner))}</b> wins this one by <b>${fmt(gap)}</b> (${((gap / (big || 1)) * 100).toFixed(0)}% of the bigger side).`}</div>
-      ${near ? `<p class="sub">To even it out, ${esc(n(winner))} could add something worth about ${fmt(gap)}, like ${esc(near.n)} (${fmt(near.v)}).</p>` : ''}`;
+      ${near ? `<p class="sub">To even it out, ${esc(n(winner))} could add something worth about ${fmt(gap)}, like ${esc(near.n)} (${near.est ? '~' : ''}${fmt(near.v)}).</p>` : ''}`;
   }
   return `<div class="cgrid">${side('a')}${side('b')}</div><div class="cres">${verdict}<button class="bub" onclick="calcClear()">Clear</button></div>
-    <p class="sub" style="margin-top:12px">Values come from <a href="https://fantasycalc.com" target="_blank" rel="noopener">FantasyCalc.com</a> (dynasty, 1 QB, 10 teams, full PPR, no TE premium), last updated ${new Date(CALC.t).toLocaleString()}. They refresh at most every 3 hours. A dash means FantasyCalc has no value for that player or pick. Totals are a simple sum, so they don't reward consolidating two assets into one.</p>`;
+    <p class="sub" style="margin-top:12px">Values come from <a href="https://fantasycalc.com" target="_blank" rel="noopener">FantasyCalc.com</a> (dynasty, 1 QB, 10 teams, full PPR, no TE premium), last updated ${new Date(CALC.t).toLocaleString()}. They refresh at most every 3 hours. A dash means there is no value for that player or pick. A ~ means FantasyCalc doesn't price that future pick yet, so it is estimated from the nearest earlier year, reduced 15% per year out. Totals are a simple sum, so they don't reward consolidating two assets into one.</p>`;
 }
 const TABS = [['matchups','Matchups'],['trades','Trades and Waivers'],['rosters','Rosters'],['calc','Trade Calculator'],['managers','Managers'],['drafts','Drafts'],['trophy','Trophy Room'],['records','Records'],['constitution','Constitution']];
 function acc(b){const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!o));b.nextElementSibling.hidden=o;}
