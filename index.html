@@ -191,7 +191,31 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase}
 .cbar{height:16px;background:var(--muted);opacity:.9;border-radius:8px;overflow:hidden;margin:4px 0}.cbar span{display:block;height:100%;background:var(--accent)}
 .cleg{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
 .cv2{font-size:1.05rem;margin:10px 0 6px}
+
+/* Thanksgiving theme: switched on by date (Nov 1 through Thanksgiving Day), off automatically afterward. Add ?tg=1 or ?tg=0 to the web address to force it on or off. */
+html.tg{--bg:#fbf3e4;--fg:#3a2414;--card:#fffaf0;--accent:#b4501a;--muted:#7a5c45;--line:#e6d3b8}
+@media(prefers-color-scheme:dark){html.tg{--bg:#1f140c;--fg:#f6ebdc;--card:#2b1c12;--accent:#c85f22;--muted:#c9b49b;--line:#4a3320}}
+html.tg .ticker{background:#24140a;border-bottom-color:#e8963c}
+html.tg .lbl::before{content:"\1F983  "}
+html.tg header{border-bottom-color:#e8963c}
+html.tg header p{color:#d9c3a8}
+.tgmsg{margin:8px 0 0!important;font:600 13px system-ui,sans-serif!important;color:#f6c48a!important;letter-spacing:.02em}
+.leaves{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:5}
+.leaves span{position:absolute;top:0;left:var(--x);font-size:var(--s);opacity:.6;animation:leaf var(--t) linear var(--dl) infinite;will-change:transform}
+@keyframes leaf{0%{transform:translate(0,-10vh) rotate(0)}25%{transform:translate(28px,28vh) rotate(90deg)}50%{transform:translate(-20px,56vh) rotate(200deg)}75%{transform:translate(24px,84vh) rotate(290deg)}100%{transform:translate(0,112vh) rotate(380deg)}}
+@media(prefers-reduced-motion:reduce){.leaves{display:none}}
 </style>
+<script>
+(function () {
+  var d = new Date(), y = d.getFullYear(), q = location.search.match(/[?&]tg=([01])/);
+  var th = 1 + (4 - new Date(y, 10, 1).getDay() + 7) % 7 + 21;   // 4th Thursday of November
+  var on = q ? q[1] === '1' : d.getMonth() === 10 && d.getDate() <= th;
+  if (on) {
+    document.documentElement.classList.add('tg');
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', '#24140a');
+  }
+})();
+</script>
 </head>
 <body>
 <div class="ticker"><div class="lbl">NFL</div><div class="tw"><div class="track" id="tk"></div></div></div>
@@ -1025,6 +1049,21 @@ async function tick() {
 }
 tick(); setInterval(tick, 60000);
 init().catch(e => { $('#main').innerHTML = `<p class="msg">Couldn't reach Sleeper (${esc(e.message)}). Refresh to try again.</p>`; });
+</script>
+<script>
+(function () {
+  if (!document.documentElement.classList.contains('tg')) return;
+  var h = document.querySelector('header');
+  if (h) h.insertAdjacentHTML('beforeend', '<p class="tgmsg">\uD83E\uDD83 Happy Thanksgiving from 317/812!</p>');
+  var L = document.createElement('div'); L.className = 'leaves'; L.setAttribute('aria-hidden', 'true');
+  for (var i = 0; i < 12; i++) {
+    var e = document.createElement('span');
+    e.textContent = i % 3 ? '\uD83C\uDF42' : '\uD83C\uDF41';
+    e.style.cssText = '--x:' + Math.round(Math.random() * 96) + '%;--s:' + (16 + Math.round(Math.random() * 10)) + 'px;--t:' + (11 + Math.round(Math.random() * 9)) + 's;--dl:-' + Math.round(Math.random() * 18) + 's';
+    L.appendChild(e);
+  }
+  document.body.appendChild(L);
+})();
 </script>
 </body>
 </html>
