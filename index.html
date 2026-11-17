@@ -240,6 +240,19 @@ html.xm .tgc .twg{animation:twg 2.6s ease-in-out infinite}
 .hc{display:flex;flex-direction:column;gap:4px;text-align:left;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--fg);cursor:pointer;font-family:system-ui,sans-serif}
 .hc b{font-size:15px}.hc span{font-size:13px;color:var(--muted)}.hc:hover{border-color:var(--accent)}
 @media(max-width:520px){.tabs{gap:6px;padding:12px 14px}.tabs button{padding:8px 13px;font-size:13px}}
+.pwintro{font:17px/1.6 Georgia,serif;max-width:700px;margin:6px 0 10px}
+.pwr{margin-top:12px}
+.pwrow{display:grid;grid-template-columns:30px 44px minmax(0,1fr) auto;align-items:center;gap:6px 12px;padding:12px 14px;margin:8px 0;border:1px solid var(--line);border-radius:14px;background:var(--card);font-family:system-ui,sans-serif}
+.pwn{flex:none;width:30px;height:30px;border-radius:50%;background:var(--line);display:grid;place-items:center;font-weight:700;font-size:14px}
+.pwr .pwrow:nth-child(-n+3) .pwn{background:var(--accent);color:#fff}
+.pwav{flex:none;width:44px;height:44px;border-radius:50%;overflow:hidden;background:var(--line);display:grid;place-items:center;font:700 14px system-ui,sans-serif}
+.pwav img{width:100%;height:100%;object-fit:cover}
+.pwm{min-width:0}.pwm b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pwl{font-size:13px;color:var(--muted)}
+.pwbar{grid-column:1/-1;height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin:4px 0 2px}.pwbar i{display:block;height:100%;background:var(--accent)}
+.pwch{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;font-size:12px}.pwch span{padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.pwch .up{color:#2e9f58;border-color:currentColor}.pwch .dn{color:#d4503f;border-color:currentColor}
+.pws{flex:none;font:700 22px system-ui,sans-serif;min-width:38px;text-align:right}
 </style>
 <script>
 (function () {
@@ -413,13 +426,10 @@ async function init() {
 /* ---------- views ---------- */
 const views = {
   async home() {
-    const card = (k, n, d) => `<button class="hc" onclick="location.hash='${k}'"><b>${n}</b><span>${d}</span></button>`;
-    return `<h2>Home</h2><p class="sub">The home page is getting a redesign soon. For now, jump to any section.</p><div class="hgrid">${
-      card('matchups', 'Matchups', 'Scores, playoff odds and standings')}${card('trades', 'Trades &amp; Waivers', 'Every move in the league')}${
-      card('managers', 'Managers', 'Who is who in the league')}${card('rosters', 'Rosters', 'Every team\'s players')}${
-      card('drafts', 'Drafts', 'Draft boards by season')}${card('trophy', 'Trophy Room', 'Champions by season')}${
-      card('records', 'Records', 'All-time standings and records')}${card('constitution', 'Constitution', 'The league rules')}${
-      card('resources', 'Resources', 'Trade calculator')}</div>`;
+    const s = S[0], since = S[S.length - 1].season;
+    setTimeout(powerFill, 0);
+    return `<h2>Welcome to our league page</h2><p class="pwintro">${esc(s.lg.name.trim())} is a ${s.lg.total_rosters}-team dynasty fantasy football league on Sleeper, playing since ${esc(since)}. See who is on top in the power rankings below, then use the tabs to follow matchups, trades and waivers, rosters, drafts and the trophy room.</p>
+    <h2>Power Rankings</h2><div id="power"><p class="msg">Running the numbers…</p></div>`;
   },
   async resources() { return '<h2>Resources</h2>' + await views.calc(); },
   async matchups(w) {
@@ -631,6 +641,62 @@ const views = {
     return `<h2>317/812 League Constitution</h2><div class="accs">${acc}</div>`;
   }
 };
+
+/* ---------- power rankings: current record + rest-of-season projection + scoring + recent form ---------- */
+let POWER = null;
+async function powerFill() {
+  const el = $('#power'); if (!el) return;
+  if (POWER) { el.innerHTML = POWER; return; }
+  try {
+    const s = S[0], st = s.lg.settings, last = (st.playoff_week_start || 15) - 1, cut = st.playoff_teams || 6, done = Math.min(st.last_scored_leg || 0, last);
+    if (!done) { el.innerHTML = '<p class="msg">Power rankings appear once the season starts.</p>'; return; }
+    const weeks = await Promise.all(Array.from({length: last}, (_, i) => get(`/league/${s.id}/matchups/${i + 1}`).catch(() => [])));
+    const ids = s.ro.map(r => r.roster_id), pl = {}, R = {}, wins = {}, pf = {};
+    ids.forEach(id => pl[id] = []);
+    s.ro.forEach(r => { R[r.roster_id] = r; wins[r.roster_id] = r.settings.wins; pf[r.roster_id] = pts(r); });
+    for (let i = 0; i < done; i++) weeks[i].forEach(x => pl[x.roster_id] && pl[x.roster_id].push(x.points || 0));
+    const mean = a => a.reduce((x, y) => x + y, 0) / (a.length || 1);
+    const all = [].concat(...ids.map(id => pl[id])), gm = mean(all), gsd = Math.sqrt(mean(all.map(v => (v - gm) ** 2))) || 20, k = 3;
+    const mu = {}; ids.forEach(id => mu[id] = (pl[id].reduce((x, y) => x + y, 0) + k * gm) / (pl[id].length + k));
+    const fut = []; for (let i = done; i < last; i++) if (weeks[i].length) fut.push(weeks[i]);
+    const avgMatch = !!st.league_average_match, N = 3000, rem = fut.length * (avgMatch ? 2 : 1), add = {}, hit = {};
+    ids.forEach(id => { add[id] = 0; hit[id] = 0; });
+    const norm = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+    if (rem) for (let n = 0; n < N; n++) {   // play out the rest of the regular season, N times
+      const w = {...wins}, p = {...pf};
+      for (const wk of fut) {
+        const sc = {}; ids.forEach(id => sc[id] = Math.max(0, mu[id] + gsd * norm()));
+        const g = {}; wk.forEach(x => (g[x.matchup_id] ??= []).push(x.roster_id));
+        Object.values(g).forEach(pr => { if (pr.length === 2) w[sc[pr[0]] >= sc[pr[1]] ? pr[0] : pr[1]]++; });
+        if (avgMatch) { const v = ids.map(id => sc[id]).sort((a, b) => a - b), med = (v[v.length / 2 - 1] + v[v.length / 2]) / 2; ids.forEach(id => { if (sc[id] > med) w[id]++; }); }
+        ids.forEach(id => p[id] += sc[id]);
+      }
+      ids.forEach(id => add[id] += w[id] - wins[id]);
+      [...ids].sort((a, b) => w[b] - w[a] || p[b] - p[a]).slice(0, cut).forEach(id => hit[id]++);
+    }
+    const rows = ids.map(id => {
+      const t = R[id].settings, p = pl[id], gp = t.wins + t.losses + (t.ties || 0), ea = add[id] / N;
+      return {id, ppg: mean(p), form: mean(p.slice(-3)), n3: Math.min(3, p.length), recW: gp ? (t.wins + 0.5 * (t.ties || 0)) / gp : 0.5,
+        ros: rem ? ea / rem : 0, projW: t.wins + ea, total: gp + rem, po: rem ? hit[id] / N * 100 : null};
+    });
+    const W = rem ? {recW: .4, ros: .3, ppg: .2, form: .1} : {recW: .5, ppg: .3, form: .2};
+    Object.keys(W).forEach(key => {   // put each ingredient on a 0-100 scale across the league, then blend
+      const v = rows.map(r => r[key]), lo = Math.min(...v), hi = Math.max(...v);
+      rows.forEach(r => r.score = (r.score || 0) + W[key] * (hi > lo ? (r[key] - lo) / (hi - lo) * 100 : 50));
+    });
+    rows.sort((a, b) => b.score - a.score);
+    const pct = v => v >= 99.5 ? '>99%' : v < 0.5 ? '<1%' : Math.round(v) + '%';
+    const list = rows.map((r, i) => {
+      const o = R[r.id].owner_id, m = s.mgr[o] || '', ph = PHOTOS[m], tr = r.ppg ? r.form / r.ppg - 1 : 0, pw = Math.round(r.projW);
+      const chips = [rem ? `<span>Proj. ${pw}-${Math.max(0, r.total - pw)}</span>` : '', r.po != null ? `<span>Playoffs ${pct(r.po)}</span>` : '', `<span>${r.ppg.toFixed(1)} PPG</span>`,
+        r.n3 >= 3 && tr >= .06 ? `<span class="up">&#9650; Hot: ${r.form.toFixed(1)} last 3</span>` : r.n3 >= 3 && tr <= -.06 ? `<span class="dn">&#9660; Cooling: ${r.form.toFixed(1)} last 3</span>` : ''].join('');
+      return `<div class="pwrow"><div class="pwn">${i + 1}</div><div class="pwav">${ph ? `<img src="${ph.t}" alt="">` : esc(m.split(' ').map(w => w[0]).slice(0, 2).join(''))}</div>
+        <div class="pwm"><b>${esc(s.rname[r.id])}</b><div class="pwl">${esc(m)} &middot; ${rec(R[r.id])}</div></div><div class="pws">${Math.round(r.score)}</div><div class="pwbar"><i style="width:${r.score.toFixed(1)}%"></i></div><div class="pwch">${chips}</div></div>`;
+    }).join('');
+    POWER = `<p class="sub">Each team's power score (0-100) blends ${rem ? "its record (40%), projected wins over the rest of the season (30%), points per game (20%) and its last three weeks (10%). The projection comes from " + N.toLocaleString() + " simulated finishes using the schedule that's left" : "its record (50%), points per game (30%) and its last three weeks (20%)"}. It's an estimate and shifts as the season goes on.</p><div class="pwr">${list}</div>`;
+    if ($('#power')) $('#power').innerHTML = POWER;
+  } catch (e) { if ($('#power')) $('#power').innerHTML = `<p class="msg">Couldn't work out the power rankings (${esc(e.message)}).</p>`; }
+}
 
 /* ---------- playoff odds (simulates the rest of the regular season in your browser) ---------- */
 let ODDS = null;
