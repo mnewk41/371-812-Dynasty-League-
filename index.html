@@ -448,12 +448,11 @@ async function init() {
 /* ---------- views ---------- */
 const views = {
   async home() {
-    const s = S[0], since = S[S.length - 1].season;
-    setTimeout(powerFill, 0); setTimeout(recapFill, 50);
-    return `<h2>Welcome to our league page</h2><p class="pwintro">${esc(s.lg.name.trim())} is a ${s.lg.total_rosters}-team dynasty fantasy football league on Sleeper, playing since ${esc(since)}. See who is on top in the power rankings below, then use the tabs to follow matchups, trades and waivers, rosters, drafts and the trophy room.</p>
-    <h2>Power Rankings</h2><div id="power"><p class="msg">Running the numbers…</p></div>
-    <h2>Weekly Recap</h2><div id="recap"><p class="msg">Loading the recap…</p></div>`;
+    setTimeout(recapFill, 0); setTimeout(powerFill, 50);
+    return `<h2>Weekly Recap</h2><div id="recap"><p class="msg">Loading the recap…</p></div>
+    <h2>Power Rankings</h2><div id="power"><p class="msg">Running the numbers…</p></div>`;
   },
+
   async resources() { return '<h2>Resources</h2>' + await views.calc(); },
   async matchups(w) {
     const s = S[0], cur = s.lg.settings.leg || 1; w = w || cur;
