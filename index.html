@@ -255,6 +255,26 @@ html.xm .tgc .twg{animation:twg 2.6s ease-in-out infinite}
 .pwch{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;font-size:12px}.pwch span{padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
 .pwch .up{color:#2e9f58;border-color:currentColor}.pwch .dn{color:#d4503f;border-color:currentColor}
 .pws{flex:none;font:700 22px system-ui,sans-serif;min-width:38px;text-align:right}
+.rcsel{margin:6px 0 10px;font:14px system-ui,sans-serif;color:var(--muted)}
+.rcsel select{font:600 14px system-ui,sans-serif;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);margin-left:6px}
+.rcsum{font:16px/1.55 Georgia,serif;max-width:700px;margin:8px 0 14px}
+.rch{font:700 18px Georgia,serif;margin:22px 0 2px}
+.rcmvp,.rcli{display:flex;align-items:center;gap:12px;padding:12px 14px;margin:8px 0;border:1px solid var(--line);border-radius:14px;background:var(--card);font-family:system-ui,sans-serif}
+.rcmvp{border-color:var(--accent)}
+.rcmvp img,.rcli img{flex:none;width:52px;height:52px;border-radius:50%;object-fit:cover;background:var(--line)}
+.rcmvp>div:nth-child(2),.rcli>div:nth-child(2),.rcli>div:nth-child(1):not(.rcav):not(.rcn){flex:1;min-width:0}
+.rcmvp small,.rca small{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.rcmvp b,.rcli b{display:block;font-size:16px}.rcmvp span,.rcli span{display:block;font-size:13px;color:var(--muted)}
+.rcn{flex:none;text-align:right;font:700 22px system-ui,sans-serif}.rcn small{display:block;font:500 11px system-ui,sans-serif;color:var(--muted);letter-spacing:0;text-transform:none}.rcn.dn{color:#d4503f}
+.rcav{flex:none;width:52px;height:52px;border-radius:50%;background:var(--line);display:grid;place-items:center;font:700 18px system-ui,sans-serif}
+.rcaw{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin:12px 0}
+@media(max-width:520px){.rcaw{grid-template-columns:repeat(2,minmax(0,1fr))}.rca{padding:10px 12px}.rca b{font-size:14px}.rca span{font-size:12px}}
+.rca{padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--card);font-family:system-ui,sans-serif}
+.rca b{display:block;font-size:15px;margin:2px 0}.rca span{font-size:13px;color:var(--muted)}
+.rcg{padding:12px 14px;margin:8px 0;border:1px solid var(--line);border-radius:14px;background:var(--card);font-family:system-ui,sans-serif}
+.rcrow{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:15px;color:var(--muted)}.rcrow.win{color:var(--fg);font-weight:700}.rcrow b{font-variant-numeric:tabular-nums}
+.rcg p{margin:8px 0 4px;font-size:14px;line-height:1.5}
+.rctags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.rctags span{font:600 11px system-ui,sans-serif;padding:3px 9px;border-radius:999px;border:1px solid var(--accent);color:var(--accent)}
 </style>
 <script>
 (function () {
@@ -429,9 +449,10 @@ async function init() {
 const views = {
   async home() {
     const s = S[0], since = S[S.length - 1].season;
-    setTimeout(powerFill, 0);
+    setTimeout(powerFill, 0); setTimeout(recapFill, 50);
     return `<h2>Welcome to our league page</h2><p class="pwintro">${esc(s.lg.name.trim())} is a ${s.lg.total_rosters}-team dynasty fantasy football league on Sleeper, playing since ${esc(since)}. See who is on top in the power rankings below, then use the tabs to follow matchups, trades and waivers, rosters, drafts and the trophy room.</p>
-    <h2>Power Rankings</h2><div id="power"><p class="msg">Running the numbers…</p></div>`;
+    <h2>Power Rankings</h2><div id="power"><p class="msg">Running the numbers…</p></div>
+    <h2>Weekly Recap</h2><div id="recap"><p class="msg">Loading the recap…</p></div>`;
   },
   async resources() { return '<h2>Resources</h2>' + await views.calc(); },
   async matchups(w) {
@@ -719,6 +740,93 @@ async function powerFill() {
     POWER = `<p class="sub">Each team's power score (0-100) blends ${rem ? "its record (40%), projected wins over the rest of the season (30%), points per game (20%) and its last three weeks (10%). The projection comes from " + N.toLocaleString() + " simulated finishes using the schedule that's left" : "its record (50%), points per game (30%) and its last three weeks (20%)"}. Arrows show how far a team moved since last week's rankings. It's an estimate and shifts as the season goes on.</p><div class="pwr">${list}</div>`;
     if ($('#power')) $('#power').innerHTML = POWER;
   } catch (e) { if ($('#power')) $('#power').innerHTML = `<p class="msg">Couldn't work out the power rankings (${esc(e.message)}).</p>`; }
+}
+
+/* ---------- weekly recap: MVP, duds, missed chances and a short review of every game (built from Sleeper's weekly results) ---------- */
+const SLOT_ELIG = {QB: ['QB'], RB: ['RB'], WR: ['WR'], TE: ['TE'], K: ['K'], DEF: ['DEF'], DL: ['DL'], LB: ['LB'], DB: ['DB'], FLEX: ['RB', 'WR', 'TE'], WRRB_FLEX: ['RB', 'WR'], REC_FLEX: ['WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], IDP_FLEX: ['DL', 'LB', 'DB']};
+// the best lineup a team could have started (exact: an assignment problem solved with the Hungarian method; a slot may be left empty for 0)
+function recapOptimal(pool, slots) {
+  const n = slots.length, P = [...pool, ...slots.map((_, i) => ({id: '_' + i, pos: '*', pt: 0}))], m = P.length, BIG = 1e6;
+  const a = Array.from({length: n + 1}, () => new Array(m + 1).fill(0));
+  for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) { const p = P[j - 1], el = SLOT_ELIG[slots[i - 1]] || []; a[i][j] = p.pos === '*' ? 0 : el.includes(p.pos) ? -p.pt : BIG; }
+  const u = new Array(n + 1).fill(0), v = new Array(m + 1).fill(0), pm = new Array(m + 1).fill(0), way = new Array(m + 1).fill(0);
+  for (let i = 1; i <= n; i++) {
+    pm[0] = i; let j0 = 0; const minv = new Array(m + 1).fill(Infinity), seen = new Array(m + 1).fill(false);
+    do {
+      seen[j0] = true; const i0 = pm[j0]; let delta = Infinity, j1 = 0;
+      for (let j = 1; j <= m; j++) if (!seen[j]) { const cur = a[i0][j] - u[i0] - v[j]; if (cur < minv[j]) { minv[j] = cur; way[j] = j0; } if (minv[j] < delta) { delta = minv[j]; j1 = j; } }
+      for (let j = 0; j <= m; j++) if (seen[j]) { u[pm[j]] += delta; v[j] -= delta; } else minv[j] -= delta;
+      j0 = j1;
+    } while (pm[j0] !== 0);
+    do { const j1 = way[j0]; pm[j0] = pm[j1]; j0 = j1; } while (j0);
+  }
+  const used = new Set(); let total = 0;
+  for (let j = 1; j <= m; j++) if (pm[j]) { const p = P[j - 1]; if (p.pos !== '*') { used.add(p.id); total += p.pt; } }
+  return {total, used};
+}
+let RC = {w: null, data: {}};
+async function recapFill(w) {
+  const el = $('#recap'); if (!el) return;
+  try {
+    const s = S[0], done = s.lg.settings.last_scored_leg || 0;
+    if (!done) { el.innerHTML = '<p class="msg">The weekly recap starts after the first week of games is final.</p>'; return; }
+    w = +w || RC.w || done; RC.w = w;
+    const [m] = await Promise.all([RC.data[w] || get(`/league/${s.id}/matchups/${w}`).then(x => RC.data[w] = x), PL ? 0 : get('/players/nfl').then(p => PL = p)]);
+    const R = {}; s.ro.forEach(r => R[r.roster_id] = r);
+    const slots = (s.lg.roster_positions || []).filter(p => !['BN', 'IR', 'TAXI'].includes(p));
+    const nm = id => { const p = PL[id]; return p ? (p.full_name || ((p.first_name || '') + ' ' + (p.last_name || '')).trim() || id) : id; };
+    const posOf = id => (PL[id] && PL[id].position) || '', tn = rid => s.rname[rid] || 'A team', f = v => Number(v).toFixed(1);
+    const tms = m.filter(x => x.matchup_id != null && x.starters && x.starters.length && (x.points || 0) > 0).map(x => {
+      const r = R[x.roster_id] || {}, blocked = new Set([...(r.reserve || []), ...(r.taxi || [])]), pp = x.players_points || {};
+      const st = x.starters.map((id, i) => ({id, pos: posOf(id), pt: x.starters_points[i] || 0, slot: slots[i]})).filter(p => p.id && p.id !== '0');
+      const sid = new Set(st.map(p => p.id));
+      const bench = (x.players || []).filter(id => !sid.has(id) && !blocked.has(id)).map(id => ({id, pos: posOf(id), pt: pp[id] || 0}));
+      const opt = recapOptimal([...st, ...bench], slots).total, pt = x.points || 0;
+      return {rid: x.roster_id, mid: x.matchup_id, pt, opt: Math.max(opt, pt), left: Math.max(0, opt - pt), st, bench, top: [...bench].sort((a, b) => b.pt - a.pt)[0]};
+    });
+    const opts = Array.from({length: done}, (_, i) => `<option value="${i + 1}"${i + 1 === w ? ' selected' : ''}>Week ${i + 1}</option>`).join('');
+    const bar = `<div class="rcsel">Showing <select onchange="recapFill(this.value)">${opts}</select></div>`;
+    if (tms.length < 2) { el.innerHTML = bar + '<p class="msg">No final scores for this week yet.</p>'; return; }
+    const scores = tms.map(t => t.pt).sort((a, b) => a - b), mid = scores.length / 2, med = scores.length % 2 ? scores[(scores.length - 1) / 2] : (scores[mid - 1] + scores[mid]) / 2;
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const allSt = [].concat(...tms.map(t => t.st.map(p => ({...p, rid: t.rid}))));
+    const posAvg = {}; allSt.forEach(p => { (posAvg[p.pos] ??= []).push(p.pt); }); Object.keys(posAvg).forEach(k => posAvg[k] = posAvg[k].reduce((a, b) => a + b, 0) / posAvg[k].length);
+    const mvp = [...allSt].sort((a, b) => b.pt - a.pt)[0], hi = [...tms].sort((a, b) => b.pt - a.pt)[0], lo = [...tms].sort((a, b) => a.pt - b.pt)[0];
+    const duds = allSt.filter(p => p.pos && posAvg[p.pos] != null).map(p => ({...p, dev: p.pt - posAvg[p.pos]})).sort((a, b) => a.dev - b.dev).slice(0, 3);
+    const groups = {}; tms.forEach(t => (groups[t.mid] ??= []).push(t));
+    const games = Object.values(groups).filter(g => g.length === 2).map(g => {
+      const [a, b] = g, win = a.pt >= b.pt ? a : b, lose = win === a ? b : a, margin = win.pt - lose.pt;
+      const star = [...win.st, ...lose.st].sort((x, y) => y.pt - x.pt)[0], starT = win.st.includes(star) ? win : lose;
+      return {a, b, win, lose, margin, tie: margin === 0, star, starT, flip: lose.opt > win.pt, lucky: win.pt < med, unlucky: lose.pt > med};
+    });
+    const close = [...games].sort((a, b) => a.margin - b.margin)[0], blow = [...games].sort((a, b) => b.margin - a.margin)[0];
+    const lucky = games.filter(g => g.lucky).sort((a, b) => a.win.pt - b.win.pt)[0], unlucky = games.filter(g => g.unlucky).sort((a, b) => b.lose.pt - a.lose.pt)[0];
+    const waste = [...tms].sort((a, b) => b.left - a.left).slice(0, 3);
+    const pl = p => `${esc(nm(p.id))} (${f(p.pt)})`;
+    const aw = (k, h, d) => `<div class="rca"><small>${k}</small><b>${h}</b><span>${d}</span></div>`;
+    const awards = [aw('Top score', esc(tn(hi.rid)), f(hi.pt) + ' points'), aw('Lowest score', esc(tn(lo.rid)), f(lo.pt) + ' points'),
+      close ? aw('Closest game', `${esc(tn(close.win.rid))} over ${esc(tn(close.lose.rid))}`, close.tie ? 'A tie' : 'By ' + f(close.margin)) : '',
+      blow && blow !== close ? aw('Biggest blowout', `${esc(tn(blow.win.rid))} over ${esc(tn(blow.lose.rid))}`, 'By ' + f(blow.margin)) : '',
+      lucky ? aw('Luckiest win', esc(tn(lucky.win.rid)), `Won with only ${f(lucky.win.pt)}, below the league median of ${f(med)}`) : '',
+      unlucky ? aw('Unluckiest loss', esc(tn(unlucky.lose.rid)), `Lost with ${f(unlucky.lose.pt)}, above the league median of ${f(med)}`) : ''].join('');
+    const verb = g => g.tie ? 'tied' : g.margin < avg * .03 ? 'edged' : g.margin < avg * .1 ? 'beat' : g.margin < avg * .25 ? 'handled' : 'crushed';
+    const gameHtml = games.sort((x, y) => x.a.mid - y.a.mid).map(g => {
+      const row = t => `<div class="rcrow${t === g.win && !g.tie ? ' win' : ''}"><span>${esc(tn(t.rid))}</span><b>${t.pt.toFixed(2)}</b></div>`;
+      const tags = [g.margin < avg * .03 && !g.tie ? 'Nail-biter' : '', g.margin >= avg * .25 ? 'Blowout' : '', g.flip ? 'Lineup flip' : '', g.lucky ? 'Lucky win' : '', g.unlucky ? 'Unlucky loss' : ''].filter(Boolean).map(t => `<span>${t}</span>`).join('');
+      const text = `${g.tie ? `${esc(tn(g.a.rid))} and ${esc(tn(g.b.rid))} tied.` : `${esc(tn(g.win.rid))} ${verb(g)} ${esc(tn(g.lose.rid))} by ${f(g.margin)}.`} Star of the game: ${pl(g.star)} for ${esc(tn(g.starT.rid))}.` +
+        (g.flip ? ` ${esc(tn(g.lose.rid))} would have won with a perfect lineup (${f(g.lose.opt)}), leaving ${f(g.lose.left)} on the bench.` : g.lose.left >= 15 ? ` ${esc(tn(g.lose.rid))} left ${f(g.lose.left)} points on the bench.` : '');
+      return `<div class="rcg">${row(g.a)}${row(g.b)}<p>${text}</p>${tags ? `<div class="rctags">${tags}</div>` : ''}</div>`;
+    }).join('');
+    const dudHtml = duds.map(p => `<div class="rcli"><img src="${photo(p.id)}" alt="" onerror="this.style.visibility='hidden'"><div><b>${esc(nm(p.id))}</b><span>${esc(p.pos)} · started by ${esc(tn(p.rid))}</span></div><div class="rcn dn">${f(p.pt)}<small>${f(Math.abs(p.dev))} below avg ${esc(p.pos)}</small></div></div>`).join('');
+    const missHtml = waste.map(t => `<div class="rcli"><div class="rcav">${esc(tn(t.rid).slice(0, 1))}</div><div><b>${esc(tn(t.rid))}</b><span>Best lineup: ${f(t.opt)} · started: ${f(t.pt)}${t.top && t.top.pt > 0 ? ` · benched ${esc(nm(t.top.id))} (${f(t.top.pt)})` : ''}</span></div><div class="rcn dn">${f(t.left)}<small>left on bench</small></div></div>`).join('');
+    const own = rid => (R[rid] && s.mgr[R[rid].owner_id]) || '';
+    el.innerHTML = `${bar}<p class="rcsum">Week ${w}: ${esc(tn(hi.rid))} had the top score (${f(hi.pt)}) and ${esc(nm(mvp.id))} was the week's MVP with ${f(mvp.pt)}. ${esc(tn(lo.rid))} brought up the rear with ${f(lo.pt)}.</p>
+      <div class="rcmvp"><img src="${photo(mvp.id)}" alt="" onerror="this.style.visibility='hidden'"><div><small>MVP of the week</small><b>${esc(nm(mvp.id))}</b><span>${esc(mvp.pos)}${PL[mvp.id] && PL[mvp.id].team ? ' · ' + esc(PL[mvp.id].team) : ''} · started by ${esc(tn(mvp.rid))}${own(mvp.rid) ? ' (' + esc(own(mvp.rid)) + ')' : ''}</span></div><div class="rcn">${f(mvp.pt)}<small>points</small></div></div>
+      <div class="rcaw">${awards}</div>
+      <h3 class="rch">Duds</h3><p class="sub">Starters who finished furthest below the average starter at their position this week.</p>${dudHtml}
+      <h3 class="rch">Missed chances</h3><p class="sub">Teams that left the most points on the bench. The best lineup is the highest-scoring group they could have started from their roster.</p>${missHtml}
+      <h3 class="rch">Game by game</h3>${gameHtml}`;
+  } catch (e) { if ($('#recap')) $('#recap').innerHTML = `<p class="msg">Couldn't build the recap (${esc(e.message)}).</p>`; }
 }
 
 /* ---------- playoff odds (simulates the rest of the regular season in your browser) ---------- */
